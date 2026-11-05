@@ -36,17 +36,34 @@
 
 从本仓库的 **Releases** 页面下载最新的 `xiaoman-*.apk`，传到安卓手机安装。
 
-- v3.1.1 和 v3.0 使用同一个发布签名，**可以直接覆盖安装 v3.1.1，数据保留**。
+- v3.2.0、v3.1、v3.0 使用同一个发布签名，**可以直接覆盖安装，数据保留**。
 - 更早的 v2.0 是 debug 签名，不能覆盖，需要先同步/导出，再卸载旧版安装。
+- 第一次安装如果提示「未知来源」，允许当前文件管理器安装即可。
 
 更细的安卓说明在 [android-app/README.md](android-app/README.md)。
-- 第一次安装如果提示「未知来源」，允许当前文件管理器安装即可。
 
 ## 第一次使用
 
+默认值已经写好：
+
+```text
+我的名字：小鸡毛
+TA 的名字：小白
+在一起：2024-01-22
+更新仓库：Duefor/xiaoman
+备用下载：https://gh-proxy.com
+```
+
 1. 打开 App，选择你是哪一位：**我** 或 **TA**。
-2. 去「设置」改两个名字和在一起的日子。
-3. 去「设置 → 两台手机同步」填坚果云。
+2. 点右上角头像 → **设置**，只改你自己的名字和在一起的日子。TA 的名字由对方自己改。
+3. 设置 → 两台手机同步，填坚果云。
+
+### 设置入口
+
+设置不再占底部导航。点右上角头像，菜单里可以进设置、同步、检查更新。  
+设置 → 动画强度：标准 / 轻微 / 关闭。
+
+![头像菜单](preview-avatar-menu.png)
 
 ### 坚果云准备
 
@@ -108,7 +125,7 @@ xiaoman/
 - Android 普通 App **不能静默安装**，最后一定会弹系统安装确认；点一下确认即可。
 - 第一次使用会跳「安装未知应用」权限，允许后回来再点一次安装。
 - 更新必须使用同一个签名文件；当前签名在 `android-app/keystore/xiaoman-release.jks`，不要丢。
-- `versionCode` 必须递增；仓库的 tag 使用 `v3.1.2` 这种格式，Actions 会自动算。
+- `versionCode` 必须递增；仓库的 tag 使用 `v3.2.0` 这种格式，Actions 会自动算。
 
 ### 在中国大陆使用 GitHub
 
@@ -160,8 +177,8 @@ PowerShell 生成 base64：
 ### 3. 发布一个版本
 
 ```bash
-git tag v3.1.2
-git push origin v3.1.2
+git tag v3.2.0
+git push origin v3.2.0
 ```
 
 GitHub Actions 会：
@@ -169,7 +186,7 @@ GitHub Actions 会：
 1. 安装依赖
 2. 同步 Capacitor 资源
 3. 用 Secrets 里的 keystore 签名
-4. 生成 `xiaoman-v3.1.2.apk`
+4. 生成 `xiaoman-v3.2.0.apk`
 5. 生成 `latest.json`（包含版本号、APK 地址、SHA-256）
 6. 创建 GitHub Release
 

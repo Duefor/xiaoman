@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
-def xiaomanVersionName = System.getenv("XIAOMAN_VERSION_NAME") ?: "3.1.0"
-def xiaomanVersionCode = (System.getenv("XIAOMAN_VERSION_CODE") ?: "30100").toInteger()
+def xiaomanVersionName = System.getenv("XIAOMAN_VERSION_NAME") ?: "3.2.0"
+def xiaomanVersionCode = (System.getenv("XIAOMAN_VERSION_CODE") ?: "30200").toInteger()
 
 android {
     namespace "com.xiaoman.couple"

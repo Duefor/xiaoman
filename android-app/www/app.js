@@ -10,17 +10,22 @@
   const STORAGE_KEY = 'xiaoman.couple.v1';
   const SYNC_KEY = 'xiaoman.sync.v1';
   const UPDATE_KEY = 'xiaoman.update.v1';
-  const APP_VERSION_NAME = '3.1.0';
-  const APP_VERSION_CODE = 30100;
+  const APP_VERSION_NAME = '3.2.0';
+  const APP_VERSION_CODE = 30200;
   const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
-  const UPDATE_REPO_PLACEHOLDER = 'YOUR_GITHUB_USERNAME/xiaoman';
-  const SCHEMA_VERSION = 3;
+  const UPDATE_REPO_PLACEHOLDER = 'Duefor/xiaoman';
+  const SCHEMA_VERSION = 4;
   const DEFAULT_SYNC_FOLDER = 'xiaoman';
   const SYNC_POLL_MS = 120000;
   const THEMES = ['coral', 'sage', 'sky', 'taro'];
   const THEME_NAMES = { coral: '珊瑚橘', sage: '鼠尾草', sky: '雾霾蓝', taro: '香芋紫' };
   const DIFFICULTIES = ['简单', '适中', '挑战'];
-  const DEFAULT_NAMES = { me: '阿满', partner: '小糖' };
+  const DEFAULT_NAMES = { me: '小鸡毛', partner: '小白' };
+  const DEFAULT_TOGETHER_DATE = '2024-01-22';
+  const PROFILE_DEFAULTS_VERSION = 320;
+  const UI_KEY = 'xiaoman.ui.v1';
+  const MOTION_LEVELS = ['full', 'subtle', 'off'];
+  const MOTION_NAMES = { full: '标准', subtle: '轻微', off: '关闭' };
 
   const MOODS = {
     happy: { label: '开心', emoji: '😊', color: '#e8b75e' },
@@ -77,6 +82,10 @@
     dinnerId: null,
     heroAnimated: false,
     space: 'shared',
+    motion: 'subtle',
+    lastRoute: '',
+    lastSpace: '',
+    returnRoute: 'home',
   };
   let lastFocused = null;
   let confirmCallback = null;
@@ -288,7 +297,7 @@
       version: SCHEMA_VERSION,
       onboarded: false,
       names: { ...DEFAULT_NAMES },
-      togetherDate: '2023-05-20',
+      togetherDate: DEFAULT_TOGETHER_DATE,
       theme: 'coral',
       moments: [
         {
@@ -484,14 +493,14 @@
         {
           id: uid(),
           title: '恋爱纪念日',
-          date: '2023-05-20',
+          date: DEFAULT_TOGETHER_DATE,
           recurring: true,
           icon: '🌷',
           note: '从这一天开始，有了我们。',
         },
         {
           id: uid(),
-          title: '小糖的生日',
+          title: '小白的生日',
           date: '1999-09-18',
           recurring: true,
           icon: '🎂',
@@ -525,6 +534,9 @@
       item.updatedAt = isoOr(`${item.date}T00:00:00`, now);
     });
     seeded.profileUpdatedAt = '1970-01-01T00:00:00.000Z';
+    seeded.namesUpdatedAt = { me: '1970-01-01T00:00:00.000Z', partner: '1970-01-01T00:00:00.000Z' };
+    seeded.togetherDateUpdatedAt = '1970-01-01T00:00:00.000Z';
+    seeded.profileDefaultsVersion = PROFILE_DEFAULTS_VERSION;
     seeded.themeUpdatedAt = '1970-01-01T00:00:00.000Z';
     seeded.updatedAt = now;
     seeded.tombstones = { moments: {}, recipes: {}, anniversaries: {} };
@@ -641,6 +653,10 @@
     const base = seedState();
     const src = raw && typeof raw === 'object' ? raw : {};
     const names = src.names && typeof src.names === 'object' ? src.names : {};
+    const profileUpdatedAt = isoOr(src.profileUpdatedAt, '1970-01-01T00:00:00.000Z');
+    const namesUpdatedAtRaw = src.namesUpdatedAt && typeof src.namesUpdatedAt === 'object'
+      ? src.namesUpdatedAt
+      : {};
     return {
       version: SCHEMA_VERSION,
       onboarded: Boolean(src.onboarded),
@@ -648,9 +664,15 @@
         me: String(names.me || base.names.me).trim().slice(0, 12) || base.names.me,
         partner: String(names.partner || base.names.partner).trim().slice(0, 12) || base.names.partner,
       },
+      namesUpdatedAt: {
+        me: isoOr(namesUpdatedAtRaw.me, profileUpdatedAt),
+        partner: isoOr(namesUpdatedAtRaw.partner, profileUpdatedAt),
+      },
       togetherDate: isValidDateStr(src.togetherDate) ? String(src.togetherDate) : base.togetherDate,
+      togetherDateUpdatedAt: isoOr(src.togetherDateUpdatedAt, profileUpdatedAt),
+      profileDefaultsVersion: Number(src.profileDefaultsVersion) || 0,
       theme: THEMES.includes(src.theme) ? src.theme : 'coral',
-      profileUpdatedAt: isoOr(src.profileUpdatedAt, '1970-01-01T00:00:00.000Z'),
+      profileUpdatedAt,
       themeUpdatedAt: isoOr(src.themeUpdatedAt, '1970-01-01T00:00:00.000Z'),
       moments: Array.isArray(src.moments) ? src.moments.map(normalizeMoment).filter(Boolean) : [],
       recipes: Array.isArray(src.recipes) ? src.recipes.map(normalizeRecipe).filter(Boolean) : [],
@@ -666,6 +688,19 @@
     };
   }
 
+  function applyProfileDefaults(nextState) {
+    if (Number(nextState.profileDefaultsVersion) >= PROFILE_DEFAULTS_VERSION) return nextState;
+    const now = isoNow();
+    nextState.names = { ...DEFAULT_NAMES };
+    nextState.togetherDate = DEFAULT_TOGETHER_DATE;
+    nextState.namesUpdatedAt = { me: now, partner: now };
+    nextState.togetherDateUpdatedAt = now;
+    nextState.profileUpdatedAt = now;
+    nextState.profileDefaultsVersion = PROFILE_DEFAULTS_VERSION;
+    nextState.updatedAt = now;
+    return nextState;
+  }
+
   function loadState() {
     let raw = null;
     try {
@@ -675,7 +710,7 @@
     }
     if (!raw) return seedState();
     try {
-      return normalizeState(JSON.parse(raw));
+      return applyProfileDefaults(normalizeState(JSON.parse(raw)));
     } catch (error) {
       return seedState();
     }
@@ -748,8 +783,8 @@
 
   function defaultUpdate() {
     return {
-      repo: '',
-      mirror: '',
+      repo: 'Duefor/xiaoman',
+      mirror: 'https://gh-proxy.com',
       auto: true,
       lastCheckAt: '',
       lastError: '',
@@ -765,8 +800,8 @@
       return {
         ...base,
         ...saved,
-        repo: String(saved.repo || '').trim(),
-        mirror: String(saved.mirror || '').trim(),
+        repo: String(saved.repo || base.repo).trim(),
+        mirror: String(saved.mirror || base.mirror).trim().replace(/\/+$/, ''),
         auto: saved.auto !== false,
       };
     } catch (error) {
@@ -969,11 +1004,23 @@
       });
     }
 
-    if (new Date(remote.profileUpdatedAt) > new Date(local.profileUpdatedAt)) {
-      merged.names = remote.names;
-      merged.togetherDate = remote.togetherDate;
-      merged.profileUpdatedAt = remote.profileUpdatedAt;
+    for (const role of ['me', 'partner']) {
+      if (new Date(remote.namesUpdatedAt[role]) > new Date(local.namesUpdatedAt[role])) {
+        merged.names[role] = remote.names[role];
+        merged.namesUpdatedAt[role] = remote.namesUpdatedAt[role];
+      }
     }
+    if (new Date(remote.togetherDateUpdatedAt) > new Date(local.togetherDateUpdatedAt)) {
+      merged.togetherDate = remote.togetherDate;
+      merged.togetherDateUpdatedAt = remote.togetherDateUpdatedAt;
+    }
+    merged.profileUpdatedAt = new Date(remote.profileUpdatedAt) > new Date(local.profileUpdatedAt)
+      ? remote.profileUpdatedAt
+      : local.profileUpdatedAt;
+    merged.profileDefaultsVersion = Math.max(
+      Number(local.profileDefaultsVersion) || 0,
+      Number(remote.profileDefaultsVersion) || 0
+    );
     if (new Date(remote.themeUpdatedAt) > new Date(local.themeUpdatedAt)) {
       merged.theme = remote.theme;
       merged.themeUpdatedAt = remote.themeUpdatedAt;
@@ -1020,7 +1067,10 @@
         version: SCHEMA_VERSION,
         onboarded: state.onboarded,
         names: state.names,
+        namesUpdatedAt: state.namesUpdatedAt,
         togetherDate: state.togetherDate,
+        togetherDateUpdatedAt: state.togetherDateUpdatedAt,
+        profileDefaultsVersion: state.profileDefaultsVersion,
         theme: state.theme,
         profileUpdatedAt: state.profileUpdatedAt,
         themeUpdatedAt: state.themeUpdatedAt,
@@ -1323,6 +1373,7 @@
   function openSyncSettings() {
     closeModal();
     if (getRoute() !== 'settings') {
+      ui.returnRoute = getRoute();
       window.location.hash = 'settings';
     }
     window.setTimeout(() => {
@@ -1532,6 +1583,8 @@
     if (footer) footer.textContent = `v${currentVersionName}`;
     const settingsLabel = $('#update-current-version');
     if (settingsLabel) settingsLabel.textContent = `v${currentVersionName}`;
+    const menuVersion = $('#avatar-menu-version');
+    if (menuVersion) menuVersion.textContent = `v${currentVersionName}`;
   }
 
   function normalizeRepo(value) {
@@ -1930,6 +1983,81 @@
     document.documentElement.dataset.theme = THEMES.includes(state.theme) ? state.theme : 'coral';
   }
 
+  function loadUiPrefs() {
+    try {
+      const raw = window.localStorage.getItem(UI_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (MOTION_LEVELS.includes(saved.motion)) ui.motion = saved.motion;
+    } catch (error) {
+      // keep defaults
+    }
+  }
+
+  function saveUiPrefs() {
+    try {
+      window.localStorage.setItem(UI_KEY, JSON.stringify({ motion: ui.motion }));
+    } catch (error) {
+      // UI preferences are best-effort.
+    }
+  }
+
+  function applyMotion() {
+    document.documentElement.dataset.motion = MOTION_LEVELS.includes(ui.motion) ? ui.motion : 'subtle';
+  }
+
+  function updateAvatar() {
+    const identity = sync && sync.identity;
+    const ownName = identity ? nameOf(identity) : state.names.me;
+    const letter = initialOf(ownName) || '小';
+    const topbar = $('#topbar-avatar-letter');
+    const sidebar = $('#sidebar-avatar-letter');
+    const menuAvatar = $('#avatar-menu-avatar');
+    if (topbar) topbar.textContent = letter;
+    if (sidebar) sidebar.textContent = letter;
+    if (menuAvatar) {
+      menuAvatar.textContent = letter;
+      menuAvatar.className = `avatar ${identity || 'me'}`;
+    }
+    const menuName = $('#avatar-menu-name');
+    if (menuName) menuName.textContent = ownName;
+    const menuSub = $('#avatar-menu-sub');
+    if (menuSub) menuSub.textContent = identity ? `我是 ${ownName}` : '还没选择身份';
+    const version = $('#avatar-menu-version');
+    if (version) version.textContent = `v${currentVersionName}`;
+    $$('.avatar-btn').forEach((button) => {
+      button.classList.toggle('active', getRoute() === 'settings');
+    });
+  }
+
+  function toggleAvatarMenu(force) {
+    const menu = $('#avatar-menu');
+    if (!menu) return;
+    const open = typeof force === 'boolean' ? force : menu.classList.contains('hidden');
+    if (open) updateAvatar();
+    menu.classList.toggle('hidden', !open);
+    $$('#topbar-avatar-btn, #sidebar-avatar-btn').forEach((button) => {
+      button.setAttribute('aria-expanded', String(open));
+    });
+    if (open) {
+      const first = menu.querySelector('button');
+      if (first) first.focus({ preventScroll: true });
+    }
+  }
+
+  function closeAvatarMenu() {
+    toggleAvatarMenu(false);
+  }
+
+  function backFromSettings() {
+    closeAvatarMenu();
+    if (ui.returnRoute && ui.returnRoute !== 'settings' && ui.returnRoute !== getRoute()) {
+      window.location.hash = ui.returnRoute;
+    } else {
+      window.location.hash = 'home';
+    }
+  }
+
   function updateSidebar() {
     const days = daysTogether();
     const me = $('#side-avatar-me');
@@ -1980,8 +2108,10 @@
 
   function render() {
     const route = getRoute();
+    const routeChanged = Boolean(ui.lastRoute && (ui.lastRoute !== route || ui.lastSpace !== ui.space));
     applyTheme();
     updateSidebar();
+    updateAvatar();
     setActiveNav(route);
     updateFab(route);
     updateTitle(route);
@@ -1996,6 +2126,13 @@
 
     const view = $('#view');
     view.innerHTML = views[route]();
+    if (routeChanged) {
+      view.classList.remove('view-enter');
+      void view.offsetWidth;
+      view.classList.add('view-enter');
+    }
+    ui.lastRoute = route;
+    ui.lastSpace = ui.space;
     if (route === 'moments') applyMomentFilter();
     if (route === 'recipes') applyRecipeFilters();
     if (route === 'home') {
@@ -2507,25 +2644,29 @@
   }
 
   function settingsView() {
-    return `<header class="page-head">
+    const identity = sync.identity;
+    const myName = identity ? nameOf(identity) : '';
+    const otherName = identity ? nameOf(identity === 'me' ? 'partner' : 'me') : '';
+    return `<header class="page-head settings-head">
       <div>
         <p class="eyebrow">OUR LITTLE HOME</p>
         <h1 class="page-title">我们的小屋</h1>
         <p class="page-sub">名字、颜色、备份，都放在这里。</p>
       </div>
+      <button class="back-btn" type="button" data-action="back">← 返回</button>
     </header>
     <div class="settings-grid">
       <form class="settings-panel" id="profile-form">
         <h2>我们是谁</h2>
-        <p class="settings-note">换成你们自己的名字，首页就会叫对人了。</p>
-        <div class="form-grid">
+        <p class="settings-note">只改你自己的名字；TA 的名字会从对方手机同步过来。</p>
+        ${identity ? `<div class="form-grid">
           <div class="field">
             <label for="profile-me">我的名字</label>
-            <input class="input" id="profile-me" name="me" maxlength="12" value="${esc(state.names.me)}" autocomplete="off" required>
+            <input class="input" id="profile-me" name="myName" maxlength="12" value="${esc(myName)}" autocomplete="off" required>
           </div>
           <div class="field">
-            <label for="profile-partner">TA 的名字</label>
-            <input class="input" id="profile-partner" name="partner" maxlength="12" value="${esc(state.names.partner)}" autocomplete="off" required>
+            <label>TA 的名字</label>
+            <div class="readonly-name"><strong>${esc(otherName)}</strong><span>由 TA 自己改</span></div>
           </div>
           <div class="field span-2">
             <label for="profile-date">在一起的日子 <span class="field-hint">首页会从这一天开始数</span></label>
@@ -2534,8 +2675,11 @@
         </div>
         <div class="form-actions">
           <span class="spacer"></span>
-          <button class="btn btn-primary" type="submit">${icon('check')} 保存我们</button>
-        </div>
+          <button class="btn btn-primary" type="submit">${icon('check')} 保存我的名字</button>
+        </div>` : `<div class="identity-required">
+          <p>先选择你是哪一位，再写名字。</p>
+          <button class="btn btn-soft" type="button" data-action="open-identity">选择身份</button>
+        </div>`}
       </form>
 
       <section class="settings-panel">
@@ -2547,6 +2691,12 @@
             <span>${THEME_NAMES[theme]}</span>
             <span class="check">${icon('check')}</span>
           </button>`).join('')}
+        </div>
+        <div class="motion-setting">
+          <div class="motion-copy"><strong>动画强度</strong><span>只改变过渡和反馈的轻重</span></div>
+          <div class="motion-options">
+            ${MOTION_LEVELS.map((level) => `<button type="button" class="${ui.motion === level ? 'active' : ''}" data-action="set-motion" data-motion="${level}">${MOTION_NAMES[level]}</button>`).join('')}
+          </div>
         </div>
         <div class="privacy-box" style="margin-top:18px">
           ${icon('sparkles')}
@@ -3399,25 +3549,39 @@
   }
 
   function saveProfile(form) {
+    if (!sync.identity) {
+      toast('先选你是哪一位，再改名字');
+      openIdentityModal();
+      return;
+    }
     const formData = new FormData(form);
-    const me = String(formData.get('me') || '').trim();
-    const partner = String(formData.get('partner') || '').trim();
+    const myName = String(formData.get('myName') || '').trim();
+    const role = sync.identity;
     const date = String(formData.get('togetherDate') || '');
-    if (!me || !partner) {
-      toast('两个名字都要写哦');
+    if (!myName) {
+      toast('先写下你的名字');
       return;
     }
     if (!isValidDateStr(date)) {
       toast('在一起的日子好像不太对');
       return;
     }
-    state.names = { me, partner };
-    state.togetherDate = date;
-    state.profileUpdatedAt = isoNow();
+    const now = isoNow();
+    if (state.names[role] !== myName) {
+      state.names[role] = myName;
+      state.namesUpdatedAt[role] = now;
+      state.profileUpdatedAt = now;
+    }
+    if (state.togetherDate !== date) {
+      state.togetherDate = date;
+      state.togetherDateUpdatedAt = now;
+      state.profileUpdatedAt = now;
+    }
+    state.profileDefaultsVersion = PROFILE_DEFAULTS_VERSION;
     state.onboarded = true;
     if (!saveState()) return;
     render();
-    toast('好，这里就是你们的小空间啦');
+    toast('好，你的名字改好了');
   }
 
   /* ------------------------------------------------------------------------
@@ -3459,6 +3623,7 @@
           danger: false,
           onConfirm: () => {
             state = normalizeState(data);
+            state.profileDefaultsVersion = PROFILE_DEFAULTS_VERSION;
             state.onboarded = true;
             saveState();
             applyTheme();
@@ -3646,9 +3811,44 @@
      ------------------------------------------------------------------------ */
 
   function handleClick(event) {
+    if (!event.target.closest('#avatar-menu')
+      && !event.target.closest('#topbar-avatar-btn')
+      && !event.target.closest('#sidebar-avatar-btn')) {
+      closeAvatarMenu();
+    }
     const actionElement = event.target.closest('[data-action]');
     if (!actionElement || actionElement.hasAttribute('disabled')) return;
     const action = actionElement.dataset.action;
+    if (action !== 'toggle-avatar-menu') closeAvatarMenu();
+
+    if (action === 'toggle-avatar-menu') {
+      toggleAvatarMenu();
+      return;
+    }
+
+    if (action === 'open-settings') {
+      if (getRoute() !== 'settings') ui.returnRoute = getRoute();
+      window.location.hash = 'settings';
+      return;
+    }
+
+    if (action === 'back') {
+      backFromSettings();
+      return;
+    }
+
+    if (action === 'set-motion') {
+      const level = actionElement.dataset.motion;
+      if (!MOTION_LEVELS.includes(level)) return;
+      ui.motion = level;
+      applyMotion();
+      saveUiPrefs();
+      $$('.motion-options button').forEach((button) => {
+        button.classList.toggle('active', button.dataset.motion === level);
+      });
+      toast(`动画已切换为${MOTION_NAMES[level]}`);
+      return;
+    }
 
     if (action === 'go') {
       const route = actionElement.dataset.route || 'home';
@@ -4042,7 +4242,9 @@
 
   function handleKeydown(event) {
     if (event.key === 'Escape') {
-      if ($('#confirm').classList.contains('open')) {
+      if (!$('#avatar-menu')?.classList.contains('hidden')) {
+        closeAvatarMenu();
+      } else if ($('#confirm').classList.contains('open')) {
         closeConfirm();
         confirmCallback = null;
       } else if ($('#modal').classList.contains('open')) {
@@ -4087,6 +4289,9 @@
     sync = loadSync();
     update = loadUpdate();
     saveSync();
+    saveState({ skipSync: true });
+    loadUiPrefs();
+    applyMotion();
     applyTheme();
     if (!window.location.hash) {
       try {

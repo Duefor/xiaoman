@@ -1,0 +1,367 @@
+/* ==========================================================================
+   Account menu, settings entry, motion preferences
+   Kept separate from the base layout so the main stylesheet stays stable.
+   ========================================================================== */
+
+:root {
+  --motion-duration: 190ms;
+  --motion-distance: 8px;
+  --motion-scale: .985;
+}
+
+html[data-motion="full"] {
+  --motion-duration: 280ms;
+  --motion-distance: 14px;
+  --motion-scale: .97;
+}
+
+html[data-motion="off"] {
+  --motion-duration: 0ms;
+  --motion-distance: 0px;
+  --motion-scale: 1;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sidebar-head .brand {
+  flex: 1;
+  min-width: 0;
+}
+
+.avatar-btn {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  padding: 0;
+  color: var(--accent-deep);
+  background: radial-gradient(circle at 30% 20%, #fffdf8, var(--accent-soft));
+  border: 1px solid rgba(217, 108, 79, .2);
+  border-radius: 50%;
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 5px 14px -10px rgba(72, 52, 36, .55);
+  transition: transform var(--motion-duration) var(--ease), box-shadow var(--motion-duration) var(--ease);
+}
+
+.avatar-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px -10px rgba(72, 52, 36, .6);
+}
+
+.avatar-btn:active {
+  transform: scale(var(--motion-scale));
+}
+
+.avatar-btn.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 12px;
+}
+
+.avatar-menu {
+  position: fixed;
+  top: 64px;
+  right: 18px;
+  z-index: 160;
+  width: 224px;
+  padding: 9px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 19px;
+  box-shadow: var(--shadow);
+  transform-origin: top right;
+  animation: menu-in var(--motion-duration) var(--ease) both;
+}
+
+.avatar-menu.hidden {
+  display: none;
+}
+
+.avatar-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.avatar-menu-head .avatar {
+  width: 36px;
+  height: 36px;
+  border-width: 2px;
+  font-size: 13px;
+  background: var(--accent);
+  margin-left: 0;
+}
+
+.avatar-menu-copy {
+  min-width: 0;
+}
+
+.avatar-menu-copy strong,
+.avatar-menu-copy span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatar-menu-copy strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.avatar-menu-copy span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.avatar-menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 6px;
+}
+
+.avatar-menu-actions button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  font-family: var(--sans);
+  font-size: 11px;
+  text-align: left;
+  transition: background var(--motion-duration) var(--ease), color var(--motion-duration) var(--ease);
+}
+
+.avatar-menu-actions button:hover {
+  color: var(--accent-deep);
+  background: var(--accent-wash);
+}
+
+.avatar-menu-actions .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.avatar-menu-foot {
+  padding: 8px 10px 4px;
+  color: var(--muted-2);
+  border-top: 1px solid var(--line);
+  font-family: var(--mono-num);
+  font-size: 8.5px;
+  text-align: right;
+}
+
+.settings-head {
+  align-items: flex-start;
+}
+
+.back-btn {
+  padding: 7px 12px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  transition: color var(--motion-duration) var(--ease), border-color var(--motion-duration) var(--ease);
+}
+
+.back-btn:hover {
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.readonly-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 41px;
+  padding: 9px 13px;
+  color: var(--ink-soft);
+  background: var(--surface-2);
+  border: 1px dashed var(--line-strong);
+  border-radius: 11px;
+}
+
+.readonly-name strong {
+  font-family: var(--serif);
+  font-size: 13px;
+}
+
+.readonly-name span {
+  color: var(--muted-2);
+  font-size: 9px;
+}
+
+.identity-required {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  color: var(--ink-soft);
+  background: var(--accent-wash);
+  border: 1px dashed rgba(217, 108, 79, .28);
+  border-radius: 13px;
+  font-size: 10.5px;
+}
+
+.identity-required p {
+  margin: 0;
+}
+
+.motion-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 17px;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+
+.motion-copy strong,
+.motion-copy span {
+  display: block;
+}
+
+.motion-copy strong {
+  color: var(--ink-soft);
+  font-size: 10.5px;
+}
+
+.motion-copy span {
+  margin-top: 2px;
+  color: var(--muted-2);
+  font-size: 8.5px;
+}
+
+.motion-options {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.motion-options button {
+  padding: 5px 9px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 9px;
+  transition: background var(--motion-duration) var(--ease), color var(--motion-duration) var(--ease);
+}
+
+.motion-options button.active {
+  color: var(--accent-deep);
+  background: var(--surface);
+  box-shadow: 0 3px 9px -7px rgba(70, 45, 30, .6);
+}
+
+.view-enter {
+  animation: view-in var(--motion-duration) var(--ease) both;
+}
+
+.nav a,
+.bottom-nav a,
+.space-switch button {
+  transition: color var(--motion-duration) var(--ease), background var(--motion-duration) var(--ease), transform var(--motion-duration) var(--ease);
+}
+
+.bottom-nav a .nav-icon {
+  transition: transform var(--motion-duration) var(--ease);
+}
+
+.bottom-nav a.active .nav-icon {
+  transform: translateY(-2px);
+}
+
+.btn,
+.icon-btn,
+.theme-option,
+.wish-card,
+.drawer-card {
+  transition-duration: var(--motion-duration);
+}
+
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-5px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes view-in {
+  from { opacity: .15; transform: translateY(var(--motion-distance)); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+html[data-motion="off"] *,
+html[data-motion="off"] *::before,
+html[data-motion="off"] *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
+  transition-duration: 1ms !important;
+}
+
+@media (min-width: 941px) {
+  .avatar-menu {
+    top: 78px;
+    right: auto;
+    left: 24px;
+    transform-origin: top left;
+  }
+}
+
+@media (max-width: 680px) {
+  .bottom-nav {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .avatar-menu {
+    top: calc(54px + env(safe-area-inset-top));
+    right: 12px;
+  }
+
+  .settings-head {
+    align-items: center;
+  }
+
+  .back-btn {
+    flex: none;
+  }
+
+  .motion-setting {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

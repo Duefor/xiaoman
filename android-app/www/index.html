@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="coral">
+<html lang="zh-CN" data-theme="coral" data-motion="subtle">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -8,6 +8,7 @@
   <meta name="description" content="记录日常、收藏菜谱、倒数纪念日——只属于两个人的小空间。">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23d96c4f'/%3E%3Cpath d='M32 48s-14-8.5-14-19a8 8 0 0 1 14-5 8 8 0 0 1 14 5c0 10.5-14 19-14 19Z' fill='%23fff8ee'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="motion.css">
 </head>
 <body>
   <!-- Inline icon sprite: no network needed, works from file:// -->
@@ -44,25 +45,29 @@
 
   <div class="app">
     <aside class="sidebar">
-      <a class="brand" href="#home" aria-label="小满首页">
-        <span class="brand-mark">
-          <svg viewBox="0 0 48 48" aria-hidden="true">
-            <ellipse cx="18" cy="27" rx="10" ry="13" fill="currentColor" transform="rotate(-8 18 27)"/>
-            <ellipse cx="31" cy="28" rx="9" ry="12" fill="#7f9b7a" transform="rotate(8 31 28)"/>
-            <circle cx="15" cy="25" r="1.15" fill="#fff8ee"/><circle cx="21" cy="25" r="1.15" fill="#fff8ee"/>
-            <circle cx="28" cy="26" r="1.15" fill="#fff8ee"/><circle cx="34" cy="26" r="1.15" fill="#fff8ee"/>
-            <path d="M15.5 31c1.3 1.4 3.2 1.4 4.5 0M28.5 32c1.2 1.2 2.9 1.2 4.1 0" stroke="#fff8ee" stroke-width="1.2" fill="none" stroke-linecap="round"/>
-          </svg>
-        </span>
-        <span class="brand-text"><strong>小满</strong><small>两个人的小小宇宙</small></span>
-      </a>
+      <div class="sidebar-head">
+        <a class="brand" href="#home" aria-label="小满首页">
+          <span class="brand-mark">
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+              <ellipse cx="18" cy="27" rx="10" ry="13" fill="currentColor" transform="rotate(-8 18 27)"/>
+              <ellipse cx="31" cy="28" rx="9" ry="12" fill="#7f9b7a" transform="rotate(8 31 28)"/>
+              <circle cx="15" cy="25" r="1.15" fill="#fff8ee"/><circle cx="21" cy="25" r="1.15" fill="#fff8ee"/>
+              <circle cx="28" cy="26" r="1.15" fill="#fff8ee"/><circle cx="34" cy="26" r="1.15" fill="#fff8ee"/>
+              <path d="M15.5 31c1.3 1.4 3.2 1.4 4.5 0M28.5 32c1.2 1.2 2.9 1.2 4.1 0" stroke="#fff8ee" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="brand-text"><strong>小满</strong><small>两个人的小小宇宙</small></span>
+        </a>
+        <button class="avatar-btn" type="button" id="sidebar-avatar-btn" data-action="toggle-avatar-menu" aria-label="我的菜单" aria-haspopup="menu" aria-expanded="false">
+          <span id="sidebar-avatar-letter">小</span>
+        </button>
+      </div>
 
       <nav class="nav" aria-label="主导航">
         <a href="#home" data-nav="home"><svg class="icon"><use href="#i-home"/></svg><span>首页</span></a>
         <a href="#moments" data-nav="moments"><svg class="icon"><use href="#i-heart"/></svg><span>日常</span></a>
         <a href="#recipes" data-nav="recipes"><svg class="icon"><use href="#i-book"/></svg><span>菜谱</span></a>
         <a href="#days" data-nav="days"><svg class="icon"><use href="#i-calendar"/></svg><span>纪念日</span></a>
-        <a href="#settings" data-nav="settings"><svg class="icon"><use href="#i-settings"/></svg><span>设置</span></a>
       </nav>
 
       <div class="side-card">
@@ -94,11 +99,38 @@
         </span>
         <span>小满</span>
       </a>
-      <button class="topbar-sync" type="button" data-action="open-sync" aria-label="同步">
-        <span class="sync-dot" id="sync-dot-mobile"></span>
-        <svg class="icon"><use href="#i-cloud"/></svg>
-      </button>
+      <div class="topbar-actions">
+        <button class="topbar-sync" type="button" data-action="open-sync" aria-label="同步">
+          <span class="sync-dot" id="sync-dot-mobile"></span>
+          <svg class="icon"><use href="#i-cloud"/></svg>
+        </button>
+        <button class="avatar-btn topbar-avatar" type="button" id="topbar-avatar-btn" data-action="toggle-avatar-menu" aria-label="我的菜单" aria-haspopup="menu" aria-expanded="false">
+          <span id="topbar-avatar-letter">小</span>
+        </button>
+      </div>
     </header>
+
+    <div class="avatar-menu hidden" id="avatar-menu" role="menu">
+      <div class="avatar-menu-head">
+        <span class="avatar me" id="avatar-menu-avatar">小</span>
+        <div class="avatar-menu-copy">
+          <strong id="avatar-menu-name">小鸡毛</strong>
+          <span id="avatar-menu-sub">我们的小空间</span>
+        </div>
+      </div>
+      <div class="avatar-menu-actions">
+        <button type="button" role="menuitem" data-action="open-settings">
+          <svg class="icon"><use href="#i-settings"/></svg><span>设置</span>
+        </button>
+        <button type="button" role="menuitem" data-action="open-sync">
+          <svg class="icon"><use href="#i-cloud"/></svg><span>同步</span>
+        </button>
+        <button type="button" role="menuitem" data-action="check-update">
+          <svg class="icon"><use href="#i-download"/></svg><span>检查更新</span>
+        </button>
+      </div>
+      <div class="avatar-menu-foot" id="avatar-menu-version">v3.2.0</div>
+    </div>
 
     <main id="main">
       <div id="view" aria-live="polite">
@@ -114,7 +146,6 @@
       <a href="#moments" data-nav="moments"><span class="nav-icon"><svg class="icon"><use href="#i-heart"/></svg></span><span>日常</span></a>
       <a href="#recipes" data-nav="recipes"><span class="nav-icon"><svg class="icon"><use href="#i-book"/></svg></span><span>菜谱</span></a>
       <a href="#days" data-nav="days"><span class="nav-icon"><svg class="icon"><use href="#i-calendar"/></svg></span><span>纪念日</span></a>
-      <a href="#settings" data-nav="settings"><span class="nav-icon"><svg class="icon"><use href="#i-settings"/></svg></span><span>设置</span></a>
     </nav>
   </div>
 

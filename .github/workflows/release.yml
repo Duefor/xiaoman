@@ -39,6 +39,8 @@ jobs:
           accept-android-sdk-licenses: true
 
       - name: Restore signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           mkdir -p android-app/keystore
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android-app/keystore/xiaoman-release.jks

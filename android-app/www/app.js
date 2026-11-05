@@ -70,7 +70,6 @@
   let downloadedApkPath = '';
   let updateDownloading = false;
   let currentVersionName = APP_VERSION_NAME;
-  let currentVersionCode = APP_VERSION_CODE;
   const ui = {
     momentFilter: 'all',
     recipeTag: '全部',
@@ -1529,7 +1528,6 @@
   async function refreshCurrentVersion() {
     const current = await getCurrentVersion();
     currentVersionName = current.name;
-    currentVersionCode = current.code;
     const footer = $('#app-version-label');
     if (footer) footer.textContent = `v${currentVersionName}`;
     const settingsLabel = $('#update-current-version');

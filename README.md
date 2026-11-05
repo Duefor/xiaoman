@@ -65,6 +65,8 @@ TA 的名字：小白
 
 ![头像菜单](preview-avatar-menu.png)
 
+![设置页](preview-settings.png)
+
 ### 坚果云准备
 
 1. 登录 [坚果云网页版](https://www.jianguoyun.com/)。

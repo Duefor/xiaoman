@@ -20,3 +20,8 @@ latest.json
 
 # local browser test profiles
 .edge-*/
+
+# IDE
+.idea/
+*.iml
+.vscode/

@@ -69,6 +69,8 @@
   let availableUpdate = null;
   let downloadedApkPath = '';
   let updateDownloading = false;
+  let currentVersionName = APP_VERSION_NAME;
+  let currentVersionCode = APP_VERSION_CODE;
   const ui = {
     momentFilter: 'all',
     recipeTag: '全部',
@@ -1524,6 +1526,16 @@
     return { code: APP_VERSION_CODE, name: APP_VERSION_NAME };
   }
 
+  async function refreshCurrentVersion() {
+    const current = await getCurrentVersion();
+    currentVersionName = current.name;
+    currentVersionCode = current.code;
+    const footer = $('#app-version-label');
+    if (footer) footer.textContent = `v${currentVersionName}`;
+    const settingsLabel = $('#update-current-version');
+    if (settingsLabel) settingsLabel.textContent = `v${currentVersionName}`;
+  }
+
   function normalizeRepo(value) {
     return String(value || '')
       .trim()
@@ -1732,7 +1744,7 @@
         <div class="sync-orb">${icon('download')}</div>
         <div>
           <h3>软件更新</h3>
-          <p>当前版本 v${APP_VERSION_NAME} · 通过 GitHub Releases 检查更新</p>
+          <p>当前版本 <span id="update-current-version">v${currentVersionName}</span> · 通过 GitHub Releases 检查更新</p>
         </div>
       </div>
       <form id="update-form">
@@ -2577,7 +2589,7 @@
         <button class="btn btn-ghost" type="button" data-action="reset-data" style="color:var(--danger);border-color:#ecd2cb">${icon('refresh')} 恢复示例数据</button>
       </section>
     </div>
-    <p class="count-note" style="margin-top:22px;text-align:center">小满 · 为两个人手写 · v3.1.0</p>
+    <p class="count-note" style="margin-top:22px;text-align:center">小满 · 为两个人手写 · <span id="app-version-label">v${currentVersionName}</span></p>
     `;
   }
 
@@ -4099,6 +4111,7 @@
     render();
     updateSyncUI();
     updateUpdateUI();
+    refreshCurrentVersion();
     if (sync.auto && isSyncConfigured()) {
       window.setTimeout(() => syncNow({ silent: true }), 1200);
     }

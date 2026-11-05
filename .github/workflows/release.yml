@@ -1,0 +1,117 @@
+name: Release 小满
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android packages
+        run: |
+          yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" >/dev/null
+          yes | sdkmanager --licenses >/dev/null
+
+      - name: Restore signing keystore
+        run: |
+          mkdir -p android-app/keystore
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android-app/keystore/xiaoman-release.jks
+
+      - name: Install dependencies and sync web assets
+        working-directory: android-app
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec cap sync android
+
+      - name: Configure Android build
+        working-directory: android-app/android
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+
+      - name: Build signed release APK
+        working-directory: android-app/android
+        env:
+          XIAOMAN_VERSION_NAME: ${{ github.ref_name }}
+          XIAOMAN_STORE_PASSWORD: ${{ secrets.XIAOMAN_STORE_PASSWORD }}
+          XIAOMAN_KEY_ALIAS: ${{ secrets.XIAOMAN_KEY_ALIAS }}
+          XIAOMAN_KEY_PASSWORD: ${{ secrets.XIAOMAN_KEY_PASSWORD }}
+        run: |
+          VERSION_NAME="${XIAOMAN_VERSION_NAME#v}"
+          export XIAOMAN_VERSION_NAME="$VERSION_NAME"
+          export XIAOMAN_VERSION_CODE="$(python3 -c "p='$VERSION_NAME'.split('.'); print(int(p[0])*10000 + (int(p[1])*100 if len(p)>1 else 0) + (int(p[2]) if len(p)>2 else 0))")"
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare release assets
+        id: assets
+        run: |
+          APK="android-app/android/app/build/outputs/apk/release/app-release.apk"
+          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          ASSET="xiaoman-${GITHUB_REF_NAME}.apk"
+          cp "$APK" "$ASSET"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          VERSION_CODE="$("$AAPT" dump badging "$APK" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p" | head -n1)"
+          SHA256="$(sha256sum "$ASSET" | awk '{print $1}')"
+          SIZE="$(stat -c%s "$ASSET")"
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${ASSET}"
+          NOTES_FILE="RELEASE_NOTES.md"
+          if [ ! -f "$NOTES_FILE" ]; then NOTES_FILE="/tmp/release-notes.md"; echo "小满 v${VERSION_NAME}" > "$NOTES_FILE"; fi
+          python3 - <<PY
+          import json, os
+          from datetime import datetime, timezone
+          notes = open("$NOTES_FILE", encoding="utf-8").read().strip()
+          data = {
+            "versionCode": int("$VERSION_CODE"),
+            "versionName": "$VERSION_NAME",
+            "apkUrl": "$APK_URL",
+            "sha256": "$SHA256",
+            "size": int("$SIZE"),
+            "notes": notes,
+            "publishedAt": datetime.now(timezone.utc).isoformat(),
+          }
+          with open("latest.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+          PY
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: 小满 v${{ steps.assets.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          files: |
+            ${{ steps.assets.outputs.asset }}
+            latest.json
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

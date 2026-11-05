@@ -1,0 +1,18 @@
+{
+  "name": "xiaoman-app",
+  "version": "3.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cap:sync": "cap sync android",
+    "build:apk": "cd android && gradlew.bat assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "7.6.10",
+    "@capacitor/browser": "7.0.5",
+    "@capacitor/core": "7.6.10"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.6.10"
+  }
+}

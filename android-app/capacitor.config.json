@@ -1,0 +1,13 @@
+{
+  "appId": "com.xiaoman.couple",
+  "appName": "Xiaoman",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

@@ -4635,3 +4635,969 @@ h1, h2, h3, h4, p {
     break-inside: avoid;
   }
 }
+
+/* ==========================================================================
+   v3.3 · 我的小岛 / 想吃 / 悬浮设置 / 照片
+   ========================================================================== */
+
+/* ---- 空间切换（左上角图标） ------------------------------------------- */
+
+.space-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 11px 5px 6px;
+  color: var(--accent-deep);
+  background: var(--accent-wash);
+  border: 1px solid rgba(217, 108, 79, .2);
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: transform .22s var(--ease), background .22s, box-shadow .22s, color .22s;
+}
+
+.space-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px -18px rgba(120, 70, 45, .8);
+}
+
+.space-toggle:active {
+  transform: scale(.94);
+}
+
+.space-toggle-mark {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--accent-deep);
+  background: var(--surface);
+  border-radius: 50%;
+  box-shadow: 0 4px 10px -8px rgba(90, 60, 40, .8);
+}
+
+.space-toggle-mark .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.space-toggle-arrow {
+  width: 12px;
+  height: 12px;
+  opacity: .5;
+}
+
+.space-toggle.is-personal {
+  color: #6d5a86;
+  background: #f3edf8;
+  border-color: rgba(130, 100, 150, .24);
+}
+
+.space-toggle.is-personal .space-toggle-mark {
+  color: #75608a;
+  background: #fff;
+}
+
+.space-toggle.compact {
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.space-toggle.compact .space-toggle-mark {
+  width: 26px;
+  height: 26px;
+  background: var(--accent-wash);
+}
+
+.space-toggle.compact.is-personal .space-toggle-mark {
+  background: #f3edf8;
+}
+
+.sidebar-space {
+  align-self: flex-start;
+  margin-bottom: 16px;
+}
+
+/* ---- 首页 hero chips 变成链接 ---------------------------------------- */
+
+.hero-chips a {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 9px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, .5);
+  border: 1px solid rgba(255, 255, 255, .7);
+  border-radius: 999px;
+  font-size: 10.5px;
+  transition: background .18s, transform .18s;
+}
+
+.hero-chips a:hover {
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.hero-chips a strong {
+  color: var(--accent-deep);
+  font-family: var(--mono-num);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---- 想吃：两个分栏 --------------------------------------------------- */
+
+.wish-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.wish-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .2s, color .2s, transform .2s;
+}
+
+.wish-tab .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.wish-tab small {
+  padding: 0 6px;
+  color: var(--muted-2);
+  background: rgba(255, 255, 255, .7);
+  border-radius: 999px;
+  font-family: var(--mono-num);
+  font-size: 9.5px;
+}
+
+.wish-tab.active {
+  color: var(--accent-deep);
+  background: var(--surface);
+  box-shadow: 0 6px 16px -14px rgba(80, 50, 30, .8);
+}
+
+.wish-tab.active small {
+  color: var(--accent-deep);
+  background: var(--accent-wash);
+}
+
+.wish-tab:active {
+  transform: scale(.97);
+}
+
+.wanted-avatars {
+  display: inline-flex;
+  margin-left: auto;
+  gap: 2px;
+}
+
+.wanted-avatars .avatar.tiny {
+  width: 18px;
+  height: 18px;
+  font-size: 8px;
+  border-width: 1.5px;
+}
+
+/* ---- 想吃：店铺卡片 --------------------------------------------------- */
+
+.place-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 18px;
+}
+
+.place-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  outline: none;
+  transition: transform .22s var(--ease), box-shadow .22s, border-color .22s;
+}
+
+.place-card:hover,
+.place-card:focus-visible {
+  transform: translateY(-4px) rotate(-.3deg);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
+}
+
+.place-cover {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 118px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.place-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(80% 100% at 20% 0%, rgba(255, 255, 255, .5), transparent 60%);
+}
+
+.place-cover.scene-home { background: linear-gradient(145deg, #fbe6d8, #f2cdbb); }
+.place-cover.scene-city { background: linear-gradient(145deg, #e2ebf3, #c7d8e6); }
+.place-cover.scene-trip { background: linear-gradient(145deg, #e6efdf, #c9dcc2); }
+.place-cover.scene-other { background: linear-gradient(145deg, #f4e7f4, #e0cde3); }
+
+.place-emoji {
+  font-size: 44px;
+  filter: drop-shadow(0 12px 13px rgba(75, 45, 30, .16));
+  transform: rotate(-3deg);
+  transition: transform .25s var(--ease);
+}
+
+.place-card:hover .place-emoji {
+  transform: rotate(4deg) scale(1.06);
+}
+
+.place-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.place-scene {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 3px 9px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, .78);
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  backdrop-filter: blur(6px);
+}
+
+.place-visited {
+  position: absolute;
+  right: 10px;
+  bottom: 9px;
+  padding: 2px 8px;
+  color: #5d7a58;
+  background: rgba(236, 245, 233, .86);
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.place-card.is-visited .place-photo,
+.place-card.is-visited .place-emoji {
+  filter: saturate(.7);
+  opacity: .9;
+}
+
+.place-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 15px 14px;
+}
+
+.place-name {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--serif);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-address {
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-dishes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.place-dishes .tag {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 8px;
+  color: var(--muted);
+  border-top: 1px dashed var(--line);
+  font-size: 9.5px;
+}
+
+.place-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.place-who .avatar.tiny {
+  width: 17px;
+  height: 17px;
+  font-size: 8px;
+}
+
+.place-status {
+  margin-left: auto;
+  padding: 2px 8px;
+  color: var(--accent-deep);
+  background: var(--accent-wash);
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+/* ---- 想吃：店铺详情 --------------------------------------------------- */
+
+.place-detail-hero {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 168px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  border-radius: 20px;
+}
+
+.place-detail-hero.scene-home { background: linear-gradient(145deg, #fbe6d8, #f2cdbb); }
+.place-detail-hero.scene-city { background: linear-gradient(145deg, #e2ebf3, #c7d8e6); }
+.place-detail-hero.scene-trip { background: linear-gradient(145deg, #e6efdf, #c9dcc2); }
+.place-detail-hero.scene-other { background: linear-gradient(145deg, #f4e7f4, #e0cde3); }
+
+.place-detail-emoji {
+  font-size: 64px;
+  filter: drop-shadow(0 14px 16px rgba(75, 45, 30, .18));
+}
+
+.place-detail-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.place-who-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px 13px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-radius: 13px;
+  font-size: 10px;
+}
+
+.place-who-line .avatar.tiny {
+  width: 18px;
+  height: 18px;
+  font-size: 8px;
+}
+
+/* ---- 记录人提示 ------------------------------------------------------- */
+
+.compose-author {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  color: var(--ink-soft);
+  background: var(--accent-wash);
+  border: 1px dashed rgba(217, 108, 79, .24);
+  border-radius: 12px;
+  font-size: 10.5px;
+}
+
+.compose-author .avatar.tiny {
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
+}
+
+.compose-author .text-link {
+  margin-left: auto;
+  font-size: 9.5px;
+}
+
+/* ---- 谁想吃 / 场景选择 ----------------------------------------------- */
+
+.who-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.who-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 7px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background .18s, border-color .18s, color .18s, transform .18s;
+}
+
+.who-option .avatar.tiny {
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
+}
+
+.who-option.active {
+  color: var(--accent-deep);
+  background: var(--accent-wash);
+  border-color: rgba(217, 108, 79, .4);
+}
+
+.who-option:active {
+  transform: scale(.96);
+}
+
+.scene-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.scene-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  font-family: var(--sans);
+  text-align: left;
+  cursor: pointer;
+  transition: background .18s, border-color .18s, transform .18s;
+}
+
+.scene-option .scene-emoji {
+  font-size: 17px;
+}
+
+.scene-option .scene-copy strong,
+.scene-option .scene-copy small {
+  display: block;
+  line-height: 1.35;
+}
+
+.scene-option .scene-copy strong {
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+
+.scene-option .scene-copy small {
+  color: var(--muted-2);
+  font-size: 9px;
+}
+
+.scene-option.active {
+  background: var(--accent-wash);
+  border-color: rgba(217, 108, 79, .4);
+}
+
+.scene-option:active {
+  transform: scale(.98);
+}
+
+/* ---- 我的小岛 --------------------------------------------------------- */
+
+.island-head .page-sub {
+  max-width: 560px;
+}
+
+.island-identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 14px 0 12px;
+  padding: 10px 13px;
+  background: rgba(255, 255, 255, .62);
+  border: 1px solid rgba(255, 255, 255, .8);
+  border-radius: 15px;
+}
+
+.island-identity .avatar {
+  margin: 0;
+}
+
+.island-identity strong,
+.island-identity small {
+  display: block;
+}
+
+.island-identity strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.island-identity small {
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 9.5px;
+}
+
+.island-identity .btn {
+  margin-left: auto;
+}
+
+.island-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.island-stats strong {
+  color: var(--ink-soft);
+  font-family: var(--mono-num);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.drawer-hero .island-identity,
+.drawer-hero .island-stats {
+  position: relative;
+}
+
+/* ---- 历史入口 / 按月分组 --------------------------------------------- */
+
+.history-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 18px;
+  padding: 13px 16px;
+  color: var(--ink-soft);
+  background: var(--surface-2);
+  border: 1px dashed var(--line-strong);
+  border-radius: 15px;
+  font-size: 11px;
+  font-weight: 600;
+  transition: background .18s, transform .18s;
+}
+
+.history-link:hover {
+  background: var(--surface);
+  transform: translateY(-1px);
+}
+
+.history-link .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--accent-deep);
+}
+
+.history-link > .icon:last-child {
+  margin-left: auto;
+  color: var(--muted-2);
+}
+
+.month-group .timeline-date {
+  font-size: 15px;
+}
+
+/* ---- 照片占位 --------------------------------------------------------- */
+
+.photo-pending {
+  background: linear-gradient(100deg, var(--surface-2) 20%, var(--surface-3) 40%, var(--surface-2) 60%);
+  background-size: 220% 100%;
+  animation: photo-shimmer 1.6s linear infinite;
+}
+
+.photo-missing {
+  background: repeating-linear-gradient(135deg, var(--surface-2), var(--surface-2) 8px, var(--surface-3) 8px, var(--surface-3) 16px);
+}
+
+.mini-photo.photo-pending,
+.mini-photo.photo-missing {
+  min-height: 54px;
+}
+
+.place-photo.photo-pending,
+.place-detail-photo.photo-pending {
+  min-height: 118px;
+}
+
+/* ---- 悬浮设置窗 ------------------------------------------------------- */
+
+.settings-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 118;
+  display: none;
+}
+
+.settings-layer.open {
+  display: block;
+}
+
+.settings-veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(46, 38, 31, .42);
+  backdrop-filter: blur(7px);
+  animation: fade-in .2s both;
+}
+
+.settings-window {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  width: min(960px, calc(100vw - 56px));
+  height: min(720px, 84dvh);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid rgba(255, 255, 255, .85);
+  border-radius: 30px;
+  box-shadow: 0 48px 110px -40px rgba(40, 27, 17, .7);
+  transform: translate(-50%, -50%);
+  animation: settings-pop .38s cubic-bezier(.22, 1.25, .36, 1) both;
+}
+
+.settings-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-bar .eyebrow {
+  margin-bottom: 4px;
+}
+
+.settings-bar h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 23px;
+  letter-spacing: .03em;
+}
+
+.settings-close {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  color: var(--ink-soft);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background .18s, transform .18s, color .18s;
+}
+
+.settings-close:hover {
+  color: var(--accent-deep);
+  background: var(--accent-wash);
+  transform: rotate(90deg);
+}
+
+.settings-close .icon {
+  width: 17px;
+  height: 17px;
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr);
+  min-height: 0;
+  flex: 1;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 12px;
+  overflow-y: auto;
+  background: linear-gradient(180deg, var(--surface-2), rgba(246, 239, 228, .4));
+  border-right: 1px solid var(--line);
+}
+
+.settings-nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 12px;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background .18s, color .18s, transform .18s;
+}
+
+.settings-nav button .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-nav button:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, .6);
+}
+
+.settings-nav button.active {
+  color: var(--accent-deep);
+  background: var(--surface);
+  box-shadow: 0 10px 22px -20px rgba(80, 50, 30, .9);
+}
+
+.settings-nav button.active .icon {
+  color: var(--accent);
+}
+
+.settings-content {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px 26px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.settings-content .settings-panel {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.settings-content .settings-panel + .settings-panel {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.settings-content .settings-panel.danger-zone {
+  background: transparent;
+}
+
+.quiet-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.quiet-row .input {
+  min-width: 0;
+  padding: 8px 9px;
+}
+
+.about-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.about-hero strong,
+.about-hero small {
+  display: block;
+}
+
+.about-hero strong {
+  font-family: var(--serif);
+  font-size: 20px;
+  letter-spacing: .1em;
+}
+
+.about-hero small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+/* 阻塞式身份选择：拿掉关闭按钮后，遮罩也不该有“可点掉”的暗示 */
+.modal.blocking .modal-close {
+  display: none;
+}
+
+/* ---- 手机适配 --------------------------------------------------------- */
+
+@media (max-width: 940px) {
+  .bottom-nav {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .settings-window {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 90dvh;
+    border-radius: 26px 26px 0 0;
+    transform: none;
+    animation: settings-rise .38s cubic-bezier(.22, 1.18, .36, 1) both;
+  }
+
+  .settings-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .settings-nav {
+    flex-direction: row;
+    gap: 6px;
+    padding: 10px 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .settings-nav button {
+    flex: none;
+    padding: 7px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .5);
+    white-space: nowrap;
+  }
+
+  .settings-nav button.active {
+    border-color: rgba(217, 108, 79, .35);
+  }
+
+  .settings-content {
+    padding: 16px 16px 26px;
+  }
+
+  .settings-bar {
+    padding: 16px 18px 12px;
+  }
+
+  .settings-close {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (max-width: 680px) {
+  .scene-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .place-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+
+  .place-cover {
+    height: 98px;
+  }
+
+  .place-name {
+    font-size: 14px;
+  }
+
+  .wish-tabs {
+    width: 100%;
+  }
+
+  .wish-tab {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .space-toggle.sidebar-space {
+    display: none;
+  }
+
+  .settings-window {
+    width: 100%;
+    height: 93dvh;
+    border-radius: 22px 22px 0 0;
+  }
+}
+
+@media (max-height: 560px) {
+  .settings-window {
+    height: 96dvh;
+  }
+}
+
+/* 键盘焦点：用主题色描边，避免默认黑色粗框 */
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.chip:focus-visible,
+.wish-tab:focus-visible,
+.avatar-menu-actions button:focus-visible,
+.settings-nav button:focus-visible,
+.settings-close:focus-visible,
+.space-toggle:focus-visible,
+.theme-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.avatar-menu-actions button:focus:not(:focus-visible),
+.settings-nav button:focus:not(:focus-visible) {
+  outline: none;
+}

@@ -365,3 +365,201 @@ html[data-motion="off"] *::after {
     flex-direction: column;
   }
 }
+
+/* ==========================================================================
+   v3.3 · 更可爱的动效（跟随 动画强度 设置）
+   ========================================================================== */
+
+:root {
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+  --spring-soft: cubic-bezier(.22, 1.2, .36, 1);
+}
+
+/* 弹窗：先缩一下再“啵”地弹出来 */
+.sheet {
+  animation: cute-sheet .42s var(--spring) both;
+}
+
+.modal-backdrop,
+.settings-veil {
+  animation: fade-in .24s ease both;
+}
+
+@keyframes cute-sheet {
+  0% { opacity: 0; transform: translate(-50%, -47%) scale(.9) rotate(-1.1deg); }
+  60% { opacity: 1; transform: translate(-50%, -50.6%) scale(1.012) rotate(.25deg); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); }
+}
+
+/* 设置悬浮窗：桌面从中间长出来，手机从底部弹上来 */
+@keyframes settings-pop {
+  0% { opacity: 0; transform: translate(-50%, -45%) scale(.92); }
+  62% { opacity: 1; transform: translate(-50%, -50.8%) scale(1.008); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes settings-rise {
+  0% { opacity: 0; transform: translateY(42px) scale(.985); }
+  70% { opacity: 1; transform: translateY(-4px) scale(1.004); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes photo-shimmer {
+  0% { background-position: 120% 0; }
+  100% { background-position: -120% 0; }
+}
+
+/* 卡片入场：轻轻错峰，最多排到第 8 张 */
+.recipe-card,
+.place-card,
+.drawer-card,
+.moment-card,
+.wish-card,
+.timeline-group {
+  animation: card-pop .46s var(--spring-soft) backwards;
+}
+
+.recipe-card:nth-child(2), .place-card:nth-child(2), .drawer-card:nth-child(2) { animation-delay: .04s; }
+.recipe-card:nth-child(3), .place-card:nth-child(3), .drawer-card:nth-child(3) { animation-delay: .08s; }
+.recipe-card:nth-child(4), .place-card:nth-child(4), .drawer-card:nth-child(4) { animation-delay: .12s; }
+.recipe-card:nth-child(5), .place-card:nth-child(5), .drawer-card:nth-child(5) { animation-delay: .16s; }
+.recipe-card:nth-child(6), .place-card:nth-child(6), .drawer-card:nth-child(6) { animation-delay: .2s; }
+.recipe-card:nth-child(7), .place-card:nth-child(7), .drawer-card:nth-child(7) { animation-delay: .24s; }
+.recipe-card:nth-child(8), .place-card:nth-child(8), .drawer-card:nth-child(8) { animation-delay: .28s; }
+
+@keyframes card-pop {
+  0% { opacity: 0; transform: translateY(14px) scale(.975); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 收藏的爱心：跳一下 */
+.recipe-fav.is-fav .icon,
+.is-fav .icon.fill {
+  animation: heart-pop .42s var(--spring) both;
+}
+
+@keyframes heart-pop {
+  0% { transform: scale(.6); }
+  55% { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+
+/* 小岛：轻轻漂浮 */
+.drawer-hero::after {
+  content: "";
+  position: absolute;
+  right: 26px;
+  bottom: 22px;
+  width: 9px;
+  height: 9px;
+  background: rgba(130, 100, 150, .18);
+  border-radius: 50%;
+  box-shadow: -22px -16px 0 -2px rgba(130, 100, 150, .14), 16px -30px 0 -3px rgba(130, 100, 150, .1);
+  animation: island-float 5.5s ease-in-out infinite;
+}
+
+@keyframes island-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+/* 头像按钮：被摸一下会歪头 */
+.avatar-btn:hover {
+  animation: head-tilt .6s var(--spring-soft);
+}
+
+@keyframes head-tilt {
+  0%, 100% { transform: rotate(0); }
+  35% { transform: rotate(-7deg) scale(1.05); }
+  70% { transform: rotate(4deg); }
+}
+
+/* 加号：按下去弹一下，悬停转个身 */
+.fab .icon {
+  transition: transform .35s var(--spring);
+}
+
+.fab:hover .icon {
+  transform: rotate(90deg) scale(1.08);
+}
+
+.fab:active {
+  transform: scale(.92);
+}
+
+/* 底部导航选中：图标跳一下 */
+.bottom-nav a.active .nav-icon {
+  animation: nav-hop .4s var(--spring);
+}
+
+@keyframes nav-hop {
+  0% { transform: translateY(0); }
+  45% { transform: translateY(-4px) scale(1.06); }
+  100% { transform: translateY(-2px); }
+}
+
+/* 分栏切换：选中项小弹一下 */
+.wish-tab.active,
+.settings-nav button.active {
+  animation: chip-pop .34s var(--spring);
+}
+
+@keyframes chip-pop {
+  0% { transform: scale(.96); }
+  60% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+/* 空状态的小 emoji：呼吸 */
+.empty-emoji {
+  animation: soft-breathe 3.6s ease-in-out infinite;
+}
+
+@keyframes soft-breathe {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-4px) rotate(2deg); }
+}
+
+/* 同步成功：小圆点脉冲 */
+.sync-dot.ok {
+  animation: dot-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(120, 155, 115, .35); }
+  50% { box-shadow: 0 0 0 4px rgba(120, 155, 115, 0); }
+}
+
+/* 轻微档：幅度减半，节奏放慢 */
+html[data-motion="subtle"] .recipe-card,
+html[data-motion="subtle"] .place-card,
+html[data-motion="subtle"] .drawer-card,
+html[data-motion="subtle"] .moment-card,
+html[data-motion="subtle"] .wish-card {
+  animation: card-pop-soft .4s ease backwards;
+}
+
+@keyframes card-pop-soft {
+  0% { opacity: 0; transform: translateY(7px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+html[data-motion="subtle"] .sheet {
+  animation: modal-pop .28s var(--ease) both;
+}
+
+html[data-motion="subtle"] .avatar-btn:hover,
+html[data-motion="subtle"] .fab:hover .icon,
+html[data-motion="subtle"] .empty-emoji,
+html[data-motion="subtle"] .drawer-hero::after {
+  animation: none;
+}
+
+html[data-motion="off"] .recipe-card,
+html[data-motion="off"] .place-card,
+html[data-motion="off"] .drawer-card,
+html[data-motion="off"] .moment-card,
+html[data-motion="off"] .wish-card,
+html[data-motion="off"] .timeline-group {
+  animation: none;
+}

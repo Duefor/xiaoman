@@ -41,10 +41,18 @@
     <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18"/><path d="M12 8c-1.5-4-6-4-6-1 0 2 3 2 6 1Zm0 0c1.5-4 6-4 6-1 0 2-3 2-6 1Z"/></symbol>
     <symbol id="i-bowl" viewBox="0 0 24 24"><path d="M4 11h16a8 8 0 0 1-16 0Z"/><path d="M8 7c0-1 1-1 1-2M12 7c0-1 1-1 1-2M16 7c0-1 1-1 1-2"/></symbol>
     <symbol id="i-drawer" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 15h6"/></symbol>
+    <symbol id="i-island" viewBox="0 0 24 24"><path d="M3.5 19c2.8 1.4 5.6 1.4 8.5 0s5.7-1.4 8.5 0"/><path d="M6.5 15.5c1.6-4.2 3.6-6.2 5.5-6.2s3.9 2 5.5 6.2"/><path d="M12 9.3V4.6"/><path d="M12 4.6c-1.9 0-3.2 1-3.2 2.2 0 1.3 1.5 1.8 3.2 1.8s3.2-.5 3.2-1.8c0-1.2-1.3-2.2-3.2-2.2Z"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6Z"/><path d="M10 19a2.2 2.2 0 0 0 4 0"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></symbol>
   </svg>
 
   <div class="app">
     <aside class="sidebar">
+      <button class="space-toggle sidebar-space" type="button" data-action="toggle-space" aria-label="切换到我的小岛" title="去我的小岛">
+        <span class="space-toggle-mark"><svg class="icon"><use href="#i-heart"/></svg></span>
+        <span class="space-toggle-label">我们的空间</span>
+        <svg class="icon space-toggle-arrow"><use href="#i-chevron"/></svg>
+      </button>
       <div class="sidebar-head">
         <a class="brand" href="#home" aria-label="小满首页">
           <span class="brand-mark">
@@ -66,7 +74,7 @@
       <nav class="nav" aria-label="主导航">
         <a href="#home" data-nav="home"><svg class="icon"><use href="#i-home"/></svg><span>首页</span></a>
         <a href="#moments" data-nav="moments"><svg class="icon"><use href="#i-heart"/></svg><span>日常</span></a>
-        <a href="#recipes" data-nav="recipes"><svg class="icon"><use href="#i-book"/></svg><span>菜谱</span></a>
+        <a href="#wishes" data-nav="wishes"><svg class="icon"><use href="#i-bowl"/></svg><span>想吃</span></a>
         <a href="#days" data-nav="days"><svg class="icon"><use href="#i-calendar"/></svg><span>纪念日</span></a>
       </nav>
 
@@ -88,6 +96,9 @@
     </aside>
 
     <header class="mobile-topbar">
+      <button class="space-toggle compact" type="button" data-action="toggle-space" aria-label="切换到我的小岛" title="去我的小岛">
+        <span class="space-toggle-mark"><svg class="icon"><use href="#i-heart"/></svg></span>
+      </button>
       <a class="brand-mini" href="#home" aria-label="小满首页">
         <span class="brand-mark small">
           <svg viewBox="0 0 48 48" aria-hidden="true">
@@ -119,6 +130,9 @@
         </div>
       </div>
       <div class="avatar-menu-actions">
+        <button type="button" role="menuitem" data-action="toggle-space">
+          <svg class="icon"><use href="#i-island"/></svg><span>我的小岛</span>
+        </button>
         <button type="button" role="menuitem" data-action="open-settings">
           <svg class="icon"><use href="#i-settings"/></svg><span>设置</span>
         </button>
@@ -144,7 +158,7 @@
     <nav class="bottom-nav" aria-label="底部导航">
       <a href="#home" data-nav="home"><span class="nav-icon"><svg class="icon"><use href="#i-home"/></svg></span><span>首页</span></a>
       <a href="#moments" data-nav="moments"><span class="nav-icon"><svg class="icon"><use href="#i-heart"/></svg></span><span>日常</span></a>
-      <a href="#recipes" data-nav="recipes"><span class="nav-icon"><svg class="icon"><use href="#i-book"/></svg></span><span>菜谱</span></a>
+      <a href="#wishes" data-nav="wishes"><span class="nav-icon"><svg class="icon"><use href="#i-bowl"/></svg></span><span>想吃</span></a>
       <a href="#days" data-nav="days"><span class="nav-icon"><svg class="icon"><use href="#i-calendar"/></svg></span><span>纪念日</span></a>
     </nav>
   </div>
@@ -152,6 +166,32 @@
   <button class="fab" id="fab" type="button" data-action="quick-add" aria-label="快速添加">
     <svg class="icon"><use href="#i-plus"/></svg>
   </button>
+
+  <div class="settings-layer" id="settings-layer" aria-hidden="true">
+    <div class="settings-veil" data-action="close-settings"></div>
+    <div class="settings-window" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <header class="settings-bar">
+        <div class="settings-bar-copy">
+          <p class="eyebrow">LITTLE HOME</p>
+          <h2 id="settings-title">设置</h2>
+        </div>
+        <button class="settings-close" type="button" data-action="close-settings" aria-label="关闭设置">
+          <svg class="icon"><use href="#i-close"/></svg>
+        </button>
+      </header>
+      <div class="settings-layout">
+        <nav class="settings-nav" id="settings-nav" role="tablist" aria-label="设置分类">
+          <button type="button" role="tab" class="active" data-action="settings-tab" data-tab="basic" aria-selected="true"><svg class="icon"><use href="#i-settings"/></svg><span>基础设置</span></button>
+          <button type="button" role="tab" data-action="settings-tab" data-tab="sync" aria-selected="false"><svg class="icon"><use href="#i-cloud"/></svg><span>同步设置</span></button>
+          <button type="button" role="tab" data-action="settings-tab" data-tab="update" aria-selected="false"><svg class="icon"><use href="#i-download"/></svg><span>更新设置</span></button>
+          <button type="button" role="tab" data-action="settings-tab" data-tab="notify" aria-selected="false"><svg class="icon"><use href="#i-bell"/></svg><span>通知设置</span></button>
+          <button type="button" role="tab" data-action="settings-tab" data-tab="data" aria-selected="false"><svg class="icon"><use href="#i-lock"/></svg><span>数据与备份</span></button>
+          <button type="button" role="tab" data-action="settings-tab" data-tab="about" aria-selected="false"><svg class="icon"><use href="#i-sparkles"/></svg><span>关于小满</span></button>
+        </nav>
+        <div class="settings-content" id="settings-content"></div>
+      </div>
+    </div>
+  </div>
 
   <div class="modal" id="modal" aria-hidden="true">
     <div class="modal-backdrop" data-action="close-modal"></div>

@@ -1,6 +1,6 @@
 /* ==========================================================================
    小满 · 两个人的小小宇宙
-   Local-first couple space: moments, recipes, anniversaries.
+   Local-first couple space: moments, cravings (dishes + places), anniversaries.
    Optional end-to-end sync through the couple's own Nutstore WebDAV.
    ========================================================================== */
 
@@ -10,16 +10,25 @@
   const STORAGE_KEY = 'xiaoman.couple.v1';
   const SYNC_KEY = 'xiaoman.sync.v1';
   const UPDATE_KEY = 'xiaoman.update.v1';
-  const APP_VERSION_NAME = '3.2.0';
-  const APP_VERSION_CODE = 30200;
+  const NOTIFY_KEY = 'xiaoman.notify.v1';
+  const APP_VERSION_NAME = '3.3.0';
+  const APP_VERSION_CODE = 30300;
   const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
   const UPDATE_REPO_PLACEHOLDER = 'Duefor/xiaoman';
-  const SCHEMA_VERSION = 4;
+  const SCHEMA_VERSION = 5;
   const DEFAULT_SYNC_FOLDER = 'xiaoman';
   const SYNC_POLL_MS = 120000;
   const THEMES = ['coral', 'sage', 'sky', 'taro'];
   const THEME_NAMES = { coral: '珊瑚橘', sage: '鼠尾草', sky: '雾霾蓝', taro: '香芋紫' };
   const DIFFICULTIES = ['简单', '适中', '挑战'];
+  const PLACE_SCENES = {
+    home: { label: '家附近', emoji: '🏠', hint: '下楼就能去' },
+    city: { label: '城里逛逛', emoji: '🌆', hint: '周末去' },
+    trip: { label: '出去玩', emoji: '🧳', hint: '旅行时收藏的' },
+    other: { label: '其他', emoji: '✨', hint: '先收着' },
+  };
+  const PLACE_STATUS = { wanted: '想去', visited: '已去过' };
+  const NOTIFY_INTERVALS = [15, 30, 60, 120, 360];
   const DEFAULT_NAMES = { me: '小鸡毛', partner: '小白' };
   const DEFAULT_TOGETHER_DATE = '2024-01-22';
   const PROFILE_DEFAULTS_VERSION = 320;
@@ -77,15 +86,21 @@
   let currentVersionName = APP_VERSION_NAME;
   const ui = {
     momentFilter: 'all',
-    recipeTag: '全部',
-    recipeQuery: '',
+    momentQuery: '',
+    wishTab: 'dishes',
+    dishTag: '全部',
+    dishQuery: '',
+    placeScene: 'all',
+    placeWho: 'all',
+    placeQuery: '',
     dinnerId: null,
     heroAnimated: false,
-    space: 'shared',
     motion: 'subtle',
     lastRoute: '',
     lastSpace: '',
     returnRoute: 'home',
+    settingsTab: 'basic',
+    lastShared: 'home',
   };
   let lastFocused = null;
   let confirmCallback = null;
@@ -525,10 +540,71 @@
       item.id = `seed-moment-${index + 1}`;
       item.updatedAt = isoOr(item.date, now);
     });
-    seeded.recipes.forEach((item, index) => {
-      item.id = `seed-recipe-${index + 1}`;
-      item.updatedAt = isoOr(item.createdAt, now);
-    });
+    seeded.wishes = {
+      dishes: seeded.recipes.map((item, index) => ({
+        ...item,
+        id: `seed-dish-${index + 1}`,
+        wantedBy: ['me', 'partner'],
+        updatedAt: isoOr(item.createdAt, now),
+      })),
+      places: [
+        {
+          id: 'seed-place-1',
+          name: '楼下那家小面馆',
+          scene: 'home',
+          city: '',
+          address: '小区北门对面，红招牌那家',
+          mapUrl: '',
+          dishes: ['牛肉面', '葱油饼'],
+          tags: ['面食', '夜宵'],
+          note: '下雨天不想做饭就来这儿。',
+          photos: [],
+          wantedBy: ['me', 'partner'],
+          status: 'wanted',
+          favorite: true,
+          createdAt: isoDaysAgo(26, 19, 30),
+          visitedAt: '',
+          updatedAt: isoDaysAgo(26, 19, 30),
+        },
+        {
+          id: 'seed-place-2',
+          name: '老王烧烤',
+          scene: 'city',
+          city: '杭州',
+          address: '胜利河美食街 18 号',
+          mapUrl: '',
+          dishes: ['烤茄子', '蒜蓉生蚝'],
+          tags: ['烧烤', '夜宵'],
+          note: '据说要排很久，得早点去。',
+          photos: [],
+          wantedBy: ['me'],
+          status: 'wanted',
+          favorite: false,
+          createdAt: isoDaysAgo(12, 21, 10),
+          visitedAt: '',
+          updatedAt: isoDaysAgo(12, 21, 10),
+        },
+        {
+          id: 'seed-place-3',
+          name: '海边那家咖啡馆',
+          scene: 'trip',
+          city: '厦门',
+          address: '环岛南路 2 号，二楼能看海',
+          mapUrl: '',
+          dishes: ['海盐拿铁', '柠檬塔'],
+          tags: ['咖啡', '看海'],
+          note: '去厦门的时候一定要再去一次。',
+          photos: [],
+          wantedBy: ['partner'],
+          status: 'visited',
+          favorite: true,
+          createdAt: isoDaysAgo(72, 15, 20),
+          visitedAt: isoDaysAgo(70, 16, 0),
+          updatedAt: isoDaysAgo(70, 16, 0),
+        },
+      ],
+    };
+    delete seeded.recipes;
     seeded.anniversaries.forEach((item, index) => {
       item.id = `seed-anniv-${index + 1}`;
       item.updatedAt = isoOr(`${item.date}T00:00:00`, now);
@@ -539,14 +615,14 @@
     seeded.profileDefaultsVersion = PROFILE_DEFAULTS_VERSION;
     seeded.themeUpdatedAt = '1970-01-01T00:00:00.000Z';
     seeded.updatedAt = now;
-    seeded.tombstones = { moments: {}, recipes: {}, anniversaries: {} };
+    seeded.tombstones = { moments: {}, dishes: {}, places: {}, anniversaries: {} };
     return seeded;
   }
 
   function normalizeMoment(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const text = String(raw.text || '').slice(0, 800);
-    const photo = safePhoto(raw.photo);
+    const photo = normalizePhoto(raw.photo);
     if (!text && !photo) return null;
     const date = new Date(raw.date);
     return {
@@ -563,7 +639,28 @@
     };
   }
 
-  function normalizeRecipe(raw) {
+  function normalizeWantedBy(raw, fallback = []) {
+    const source = Array.isArray(raw) ? raw : fallback;
+    const result = [...new Set(source.filter((item) => item === 'me' || item === 'partner'))];
+    return result.length ? result : ['me'];
+  }
+
+  function normalizePhoto(raw) {
+    if (!raw) return '';
+    if (typeof raw === 'string') {
+      return /^data:image\//i.test(raw) ? raw : '';
+    }
+    if (typeof raw === 'object' && raw.id) {
+      return {
+        id: String(raw.id),
+        w: Math.max(0, Number(raw.w) || 0),
+        h: Math.max(0, Number(raw.h) || 0),
+      };
+    }
+    return '';
+  }
+
+  function normalizeDish(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const name = String(raw.name || '').trim().slice(0, 40);
     if (!name) return null;
@@ -594,8 +691,44 @@
       ingredients,
       steps,
       favorite: Boolean(raw.favorite),
+      wantedBy: normalizeWantedBy(raw.wantedBy, ['me']),
       createdAt: Number.isNaN(createdAt.getTime()) ? new Date().toISOString() : createdAt.toISOString(),
       cookedAt: Number.isNaN(cookedAt.getTime()) ? '' : cookedAt.toISOString(),
+      updatedAt: isoOr(raw.updatedAt, Number.isNaN(createdAt.getTime()) ? isoNow() : createdAt.toISOString()),
+    };
+  }
+
+  function normalizePlace(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const name = String(raw.name || '').trim().slice(0, 40);
+    if (!name) return null;
+    const createdAt = new Date(raw.createdAt);
+    const visitedAt = new Date(raw.visitedAt);
+    const dishes = Array.isArray(raw.dishes)
+      ? [...new Set(raw.dishes.map((item) => String(item || '').trim().slice(0, 24)).filter(Boolean))].slice(0, 12)
+      : [];
+    const tags = Array.isArray(raw.tags)
+      ? [...new Set(raw.tags.map((tag) => String(tag || '').trim().slice(0, 12)).filter(Boolean))].slice(0, 6)
+      : [];
+    const photos = Array.isArray(raw.photos)
+      ? raw.photos.map(normalizePhoto).filter((photo) => photo && typeof photo === 'object').slice(0, 3)
+      : [];
+    return {
+      id: String(raw.id || uid()),
+      name,
+      scene: PLACE_SCENES[raw.scene] ? raw.scene : 'other',
+      city: String(raw.city || '').trim().slice(0, 20),
+      address: String(raw.address || '').trim().slice(0, 120),
+      mapUrl: String(raw.mapUrl || '').trim().slice(0, 400),
+      dishes,
+      tags,
+      note: String(raw.note || '').slice(0, 200),
+      photos,
+      wantedBy: normalizeWantedBy(raw.wantedBy, ['me']),
+      status: raw.status === 'visited' ? 'visited' : 'wanted',
+      favorite: Boolean(raw.favorite),
+      createdAt: Number.isNaN(createdAt.getTime()) ? new Date().toISOString() : createdAt.toISOString(),
+      visitedAt: Number.isNaN(visitedAt.getTime()) ? '' : visitedAt.toISOString(),
       updatedAt: isoOr(raw.updatedAt, Number.isNaN(createdAt.getTime()) ? isoNow() : createdAt.toISOString()),
     };
   }
@@ -616,10 +749,10 @@
   }
 
   function normalizeTombstones(raw) {
-    const result = { moments: {}, recipes: {}, anniversaries: {} };
+    const result = { moments: {}, dishes: {}, places: {}, anniversaries: {} };
     if (!raw || typeof raw !== 'object') return result;
     for (const type of Object.keys(result)) {
-      const source = raw[type];
+      const source = raw[type] || (type === 'dishes' ? raw.recipes : null);
       if (!source || typeof source !== 'object') continue;
       for (const [id, timestamp] of Object.entries(source)) {
         const date = new Date(timestamp);
@@ -657,6 +790,11 @@
     const namesUpdatedAtRaw = src.namesUpdatedAt && typeof src.namesUpdatedAt === 'object'
       ? src.namesUpdatedAt
       : {};
+    const wishSrc = src.wishes && typeof src.wishes === 'object' ? src.wishes : {};
+    const dishSource = Array.isArray(wishSrc.dishes)
+      ? wishSrc.dishes
+      : (Array.isArray(src.recipes) ? src.recipes : []);
+    const placeSource = Array.isArray(wishSrc.places) ? wishSrc.places : [];
     return {
       version: SCHEMA_VERSION,
       onboarded: Boolean(src.onboarded),
@@ -675,7 +813,10 @@
       profileUpdatedAt,
       themeUpdatedAt: isoOr(src.themeUpdatedAt, '1970-01-01T00:00:00.000Z'),
       moments: Array.isArray(src.moments) ? src.moments.map(normalizeMoment).filter(Boolean) : [],
-      recipes: Array.isArray(src.recipes) ? src.recipes.map(normalizeRecipe).filter(Boolean) : [],
+      wishes: {
+        dishes: dishSource.map(normalizeDish).filter(Boolean),
+        places: placeSource.map(normalizePlace).filter(Boolean),
+      },
       anniversaries: Array.isArray(src.anniversaries)
         ? src.anniversaries.map(normalizeAnniversary).filter(Boolean)
         : [],
@@ -983,6 +1124,20 @@
     return tombstones;
   }
 
+  function mergeCollection(localList, remoteList, deletedMap) {
+    const map = new Map();
+    for (const item of [...remoteList, ...localList]) {
+      const previous = map.get(item.id);
+      if (!previous || recordTime(item) >= recordTime(previous)) {
+        map.set(item.id, item);
+      }
+    }
+    return Array.from(map.values()).filter((item) => {
+      const deletedAt = deletedMap[item.id];
+      return !deletedAt || new Date(deletedAt).getTime() < recordTime(item);
+    });
+  }
+
   function mergeStates(localRaw, remoteRaw) {
     const local = normalizeState(localRaw);
     const remote = normalizeState(remoteRaw);
@@ -990,19 +1145,12 @@
     const tombstones = mergeTombstones(local.tombstones, remote.tombstones);
     merged.tombstones = tombstones;
 
-    for (const type of ['moments', 'recipes', 'anniversaries']) {
-      const map = new Map();
-      for (const item of [...remote[type], ...local[type]]) {
-        const previous = map.get(item.id);
-        if (!previous || recordTime(item) >= recordTime(previous)) {
-          map.set(item.id, item);
-        }
-      }
-      merged[type] = Array.from(map.values()).filter((item) => {
-        const deletedAt = tombstones[type][item.id];
-        return !deletedAt || new Date(deletedAt).getTime() < recordTime(item);
-      });
-    }
+    merged.moments = mergeCollection(local.moments, remote.moments, tombstones.moments);
+    merged.anniversaries = mergeCollection(local.anniversaries, remote.anniversaries, tombstones.anniversaries);
+    merged.wishes = {
+      dishes: mergeCollection(local.wishes.dishes, remote.wishes.dishes, tombstones.dishes),
+      places: mergeCollection(local.wishes.places, remote.wishes.places, tombstones.places),
+    };
 
     for (const role of ['me', 'partner']) {
       if (new Date(remote.namesUpdatedAt[role]) > new Date(local.namesUpdatedAt[role])) {
@@ -1037,8 +1185,8 @@
     const local = normalizePersonal(localRaw);
     const remote = normalizePersonal(remoteRaw);
     const tombstones = mergeTombstones(
-      { moments: local.tombstones, recipes: {}, anniversaries: {} },
-      { moments: remote.tombstones, recipes: {}, anniversaries: {} },
+      { moments: local.tombstones },
+      { moments: remote.tombstones },
     ).moments;
 
     const map = new Map();
@@ -1052,7 +1200,7 @@
     });
     return {
       moments,
-      tombstones: pruneTombstones({ moments: tombstones, recipes: {}, anniversaries: {} }).moments,
+      tombstones: pruneTombstones({ moments: tombstones }).moments,
       updatedAt: isoNow(),
     };
   }
@@ -1075,7 +1223,7 @@
         profileUpdatedAt: state.profileUpdatedAt,
         themeUpdatedAt: state.themeUpdatedAt,
         moments: state.moments,
-        recipes: state.recipes,
+        wishes: state.wishes,
         anniversaries: state.anniversaries,
         tombstones: state.tombstones,
         updatedAt: state.updatedAt,
@@ -1107,11 +1255,6 @@
   }
 
   function refreshAfterSync() {
-    if (getRoute() === 'settings') {
-      updateSidebar();
-      applyTheme();
-      return;
-    }
     render();
   }
 
@@ -1180,7 +1323,7 @@
     } else if (download.status !== 404) {
       if (download.status === 401) throw new Error('账号或应用密码不对');
       if (download.status === 403) throw new Error('没有权限，检查账号和应用密码');
-      throw new Error(`读取我的小抽屉失败（HTTP ${download.status}）`);
+      throw new Error(`读取我的小岛失败（HTTP ${download.status}）`);
     }
 
     state.personal[identity] = remotePersonal
@@ -1205,9 +1348,9 @@
 
     if (![200, 201, 204].includes(upload.status)) {
       if (upload.status === 404) {
-        throw new Error('我的小抽屉上传失败：先在坚果云新建 xiaoman 文件夹');
+        throw new Error('我的小岛上传失败：先在坚果云新建 xiaoman 文件夹');
       }
-      throw new Error(`我的小抽屉上传失败（HTTP ${upload.status}）`);
+      throw new Error(`我的小岛上传失败（HTTP ${upload.status}）`);
     }
   }
 
@@ -1226,13 +1369,15 @@
       await syncSharedFile();
       if (sync.identity) await syncPersonalFile(sync.identity);
       refreshAfterSync();
+      await uploadQueuedPhotos();
 
       sync.lastSyncAt = isoNow();
       sync.lastError = '';
       saveSync();
       updateSyncUI();
+      syncNotifyConfig();
       if (!options.silent) {
-        toast(sync.identity ? '同步完成，共享空间和小抽屉都合在一起了' : '共享空间已同步；选择身份后才会同步小抽屉');
+        toast(sync.identity ? '同步完成，共享空间和小岛都合在一起了' : '共享空间已同步；选择身份后才会同步小岛');
       }
     } catch (error) {
       sync.lastError = error && error.message ? error.message : '同步失败';
@@ -1257,7 +1402,7 @@
     if (syncing) return '正在同步…';
     if (!isSyncConfigured()) return sync && sync.enabled ? '同步设置不完整' : '同步未开启';
     if (sync.lastError) return `同步失败：${sync.lastError}`;
-    if (!sync.identity) return '共享空间已开启；选择身份后同步小抽屉';
+    if (!sync.identity) return '共享空间已开启；选择身份后同步小岛';
     if (sync.lastSyncAt) return `上次同步：${formatSyncTime(sync.lastSyncAt)}`;
     return '已设置，等待第一次同步';
   }
@@ -1296,26 +1441,35 @@
 
   function openIdentityModal() {
     const active = sync && sync.identity;
+    const blocking = !active;
     openModal({
       eyebrow: 'WHO ARE YOU',
-      title: '你是哪一位？',
-      subtitle: '身份只影响「我的小抽屉」；共享空间两边完全一样。',
+      title: blocking ? '先选一下，你是哪一位？' : '你是哪一位？',
+      subtitle: blocking
+        ? '选好之后，这台手机就记住你了。之后记录小事不用再选，随时可以在「我的小岛」里切换。'
+        : '身份只影响「我的小岛」；共享空间两边完全一样。',
       body: `<div class="identity-choice-grid">
         ${['me', 'partner'].map((identity) => `<button class="identity-choice ${active === identity ? 'active' : ''}" type="button" data-action="choose-identity" data-identity="${identity}">
           ${avatarFor(identity)}
-          <span class="identity-choice-copy"><strong>我是 ${esc(nameOf(identity))}</strong><small>${identity === 'me' ? '我的小抽屉' : '她的小抽屉'}只在这个身份下出现</small></span>
+          <span class="identity-choice-copy"><strong>我是 ${esc(nameOf(identity))}</strong><small>${identity === 'me' ? '我的小岛' : 'TA 的小岛'}只在这个身份下出现</small></span>
           ${active === identity ? icon('check') : icon('chevron')}
         </button>`).join('')}
       </div>
-      <p class="sync-note">换手机时重新选一次，自己的小抽屉会从云端恢复。选错可以随时在设置里切换。</p>`,
+      <p class="sync-note">${blocking ? '这一步只需要一次。选好之后，加号记录会自动用你的身份。' : '切换身份后，小岛上的内容会跟着换；共享空间不受影响。'}</p>`,
     });
+    const modal = $('#modal');
+    if (modal) {
+      modal.classList.toggle('blocking', blocking);
+      const closeBtn = modal.querySelector('.modal-close');
+      if (closeBtn) closeBtn.classList.toggle('hidden', blocking);
+    }
   }
 
   function identityBanner() {
     if (sync && sync.identity) return '';
     return `<div class="identity-banner">
       ${icon('users')}
-      <p>先告诉小满，你是哪一位？这样「我的小抽屉」才不会和 TA 的混在一起。</p>
+      <p>先告诉小满，你是哪一位？这样「我的小岛」才不会和 TA 的混在一起。</p>
       <div class="identity-picks">
         <button type="button" data-action="choose-identity" data-identity="me">我是 ${esc(state.names.me)}</button>
         <button type="button" data-action="choose-identity" data-identity="partner">我是 ${esc(state.names.partner)}</button>
@@ -1330,7 +1484,8 @@
     closeModal();
     updateSyncUI();
     render();
-    toast(`好，你是 ${nameOf(identity)}；小抽屉只会在你这边出现`);
+    syncNotifyConfig();
+    toast(`好，你是 ${nameOf(identity)}；小岛只会在你这边出现`);
     if (isSyncConfigured()) await syncNow({ silent: true });
   }
 
@@ -1350,14 +1505,14 @@
     return `<div class="sync-summary">
       <div class="sync-orb">${icon('cloud-check')}</div>
       <h3>${syncing ? '正在把数据合在一起' : '数据在你们自己的云里'}</h3>
-      <p>${esc(sync.folder)} 文件夹 · 共享空间和各自的小抽屉分开同步。</p>
+      <p>${esc(sync.folder)} 文件夹 · 共享空间和各自的小岛分开同步。</p>
       <div class="sync-status-line ${sync.lastError ? 'is-error' : ''}" id="sync-modal-status">${esc(syncStatusText())}</div>
     </div>
     <div class="sync-modal-actions">
       <button class="btn btn-primary" type="button" data-action="sync-now" ${syncing ? 'disabled' : ''}>${icon('refresh')} 立即同步</button>
       <button class="btn btn-ghost" type="button" data-action="open-sync-settings">同步设置</button>
     </div>
-    <p class="sync-note">共享空间是 ${esc(sync.folder)}/shared.json，小抽屉是 ${esc(sync.folder)}/me.json 或 her.json。</p>`;
+    <p class="sync-note">共享空间是 ${esc(sync.folder)}/shared.json，小岛是 ${esc(sync.folder)}/me.json 或 her.json；照片在 ${esc(sync.folder)}/photos/。</p>`;
   }
 
   function openSyncModal() {
@@ -1372,14 +1527,7 @@
 
   function openSyncSettings() {
     closeModal();
-    if (getRoute() !== 'settings') {
-      ui.returnRoute = getRoute();
-      window.location.hash = 'settings';
-    }
-    window.setTimeout(() => {
-      const panel = $('#sync-panel');
-      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 180);
+    openSettings('sync');
   }
 
   function syncSettingsPanelHTML() {
@@ -1398,9 +1546,9 @@
         <span class="avatar ${sync && sync.identity ? sync.identity : 'me'}">${esc(sync && sync.identity ? initialOf(nameOf(sync.identity)) : '?')}</span>
         <div class="identity-card-copy">
           <strong>${sync && sync.identity ? `${esc(nameOf(sync.identity))} · 这是我的身份` : '还没选择身份'}</strong>
-          <small>身份只影响「我的小抽屉」；共享空间两边一样</small>
+          <small>身份只影响「我的小岛」；共享空间两边一样</small>
         </div>
-        <button class="btn btn-ghost btn-sm" type="button" data-action="open-identity">${sync && sync.identity ? '切换' : '选择'}</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="switch-identity">${sync && sync.identity ? '切换' : '选择'}</button>
       </div>
       <form id="sync-form">
         <div class="form-grid">
@@ -1435,7 +1583,7 @@
         <span class="sync-dot"></span>
         <div><strong>${native ? '安卓 App · 原生网络' : '网页版 · 受浏览器限制'}</strong><span id="sync-status">${esc(syncStatusText())}</span></div>
       </div>
-      <p class="sync-note">云端文件夹里会自动放 shared.json、me.json、her.json，不要手动改它们。</p>
+      <p class="sync-note">云端文件夹里会自动放 shared.json、me.json、her.json；照片单独放在 photos/ 里，都不用手动改。</p>
       <p class="sync-note">${native
         ? '安卓 App 直接连坚果云，不经过任何第三方服务器。应用密码只保存在本机。'
         : '网页版会被坚果云的浏览器跨域策略拦住，建议使用安卓 App 版本同步。'}</p>
@@ -1867,6 +2015,213 @@
   }
 
   /* ------------------------------------------------------------------------
+     Notifications (local notifications driven by background WebDAV checks)
+     ------------------------------------------------------------------------ */
+
+  let notify = null;
+
+  function defaultNotify() {
+    return { enabled: false, interval: 30, quietStart: '23:00', quietEnd: '08:00' };
+  }
+
+  function loadNotify() {
+    const base = defaultNotify();
+    try {
+      const raw = window.localStorage.getItem(NOTIFY_KEY);
+      if (!raw) return base;
+      const saved = JSON.parse(raw);
+      return {
+        ...base,
+        ...saved,
+        enabled: Boolean(saved.enabled),
+        interval: NOTIFY_INTERVALS.includes(Number(saved.interval)) ? Number(saved.interval) : 30,
+      };
+    } catch (error) {
+      return base;
+    }
+  }
+
+  function saveNotify() {
+    try {
+      window.localStorage.setItem(NOTIFY_KEY, JSON.stringify(notify));
+    } catch (error) {
+      // notifications settings are best effort
+    }
+    syncNotifyConfig();
+  }
+
+  function notifyPlugin() {
+    try {
+      return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.XiaomanNotify;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async function syncNotifyConfig() {
+    if (!isNativeApp()) return;
+    const plugin = notifyPlugin();
+    if (!plugin || !notify) return;
+    const configured = isSyncConfigured();
+    try {
+      await plugin.configure({
+        enabled: Boolean(notify.enabled && configured),
+        sharedUrl: configured ? remoteFileUrl('shared') : '',
+        auth: configured ? basicAuth(sync.username, sync.password) : '',
+        interval: notify.interval,
+        quietStart: notify.quietStart,
+        quietEnd: notify.quietEnd,
+        baseline: state.updatedAt || '',
+        identity: sync.identity || '',
+      });
+    } catch (error) {
+      // Native scheduling is best effort.
+    }
+  }
+
+  async function refreshNotifyPermission() {
+    const label = $('#notify-permission');
+    if (!label) return;
+    const plugin = notifyPlugin();
+    if (!isNativeApp() || !plugin) {
+      label.textContent = '网页版不支持系统通知；装到手机上才会生效';
+      return;
+    }
+    try {
+      const result = await plugin.checkPermission();
+      const granted = Boolean(result && result.granted);
+      label.textContent = granted ? '通知权限已开启' : '还没有通知权限，点下面的按钮开启';
+      label.classList.toggle('is-error', !granted);
+    } catch (error) {
+      label.textContent = '无法读取通知权限';
+    }
+  }
+
+  async function requestNotifyPermission() {
+    const plugin = notifyPlugin();
+    if (!isNativeApp() || !plugin) {
+      toast('网页版不支持系统通知，装到手机上试试');
+      return;
+    }
+    try {
+      const result = await plugin.requestPermission();
+      if (result && result.granted) toast('通知权限开好啦');
+      else toast('没有拿到通知权限，可以去系统设置里手动打开');
+    } catch (error) {
+      toast('申请通知权限失败');
+    }
+    refreshNotifyPermission();
+  }
+
+  async function testNotification() {
+    const plugin = notifyPlugin();
+    if (!isNativeApp() || !plugin) {
+      toast('装到手机上才能发系统通知');
+      return;
+    }
+    try {
+      await plugin.notify({ title: '小满', body: '这是一条测试通知，看到就说明能用了。', route: 'home' });
+      toast('发出去啦，看看通知栏');
+    } catch (error) {
+      toast('发通知失败，先检查权限');
+    }
+  }
+
+  function settingsNotifyHTML() {
+    const config = notify || defaultNotify();
+    return `<section class="settings-panel">
+      <h2>手机通知</h2>
+      <p class="settings-note">TA 那边有新动态时，让手机在通知栏轻轻提醒你一下。</p>
+      <form id="notify-form">
+        <label class="check-row">
+          <input type="checkbox" id="notify-enabled" ${config.enabled ? 'checked' : ''}>
+          <span>有新动态时通知我</span>
+        </label>
+        <div class="form-grid" style="margin-top:14px">
+          <div class="field">
+            <label for="notify-interval">后台检查间隔</label>
+            <select class="select" id="notify-interval">
+              ${NOTIFY_INTERVALS.map((minutes) => `<option value="${minutes}" ${config.interval === minutes ? 'selected' : ''}>${minutes < 60 ? `${minutes} 分钟` : `${minutes / 60} 小时`}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label>免打扰</label>
+            <div class="quiet-row">
+              <input class="input" id="notify-quiet-start" type="time" value="${esc(config.quietStart)}">
+              <span>到</span>
+              <input class="input" id="notify-quiet-end" type="time" value="${esc(config.quietEnd)}">
+            </div>
+          </div>
+        </div>
+        <div class="sync-status-box" id="notify-permission-box">
+          <span class="sync-dot"></span>
+          <div><strong>系统通知权限</strong><span id="notify-permission">检测中…</span></div>
+        </div>
+        <div class="sync-actions">
+          <button class="btn btn-ghost" type="button" data-action="request-notify-permission">开启通知权限</button>
+          <button class="btn btn-ghost" type="button" data-action="test-notify">发一条测试通知</button>
+          <button class="btn btn-primary" type="submit">保存通知设置</button>
+        </div>
+      </form>
+      <p class="sync-note">没有服务器，所以是「定期去坚果云看一眼」：最快 15 分钟一次，系统省电时可能更晚。只在发现 TA 的新内容时提醒。</p>
+      <p class="sync-note">先在同步设置里填好坚果云，通知才有内容可看。</p>
+    </section>`;
+  }
+
+  function saveNotifyForm(form) {
+    notify.enabled = Boolean(form.querySelector('#notify-enabled').checked);
+    const interval = Number(form.querySelector('#notify-interval').value);
+    notify.interval = NOTIFY_INTERVALS.includes(interval) ? interval : 30;
+    notify.quietStart = String(form.querySelector('#notify-quiet-start').value || '23:00');
+    notify.quietEnd = String(form.querySelector('#notify-quiet-end').value || '08:00');
+    saveNotify();
+    toast(notify.enabled ? '通知开好啦，有新动态会提醒你' : '通知已关闭');
+  }
+
+  function confirmSwitchIdentity() {
+    if (!sync.identity) {
+      openIdentityModal();
+      return;
+    }
+    const other = sync.identity === 'me' ? 'partner' : 'me';
+    openConfirm({
+      title: `切换到「${nameOf(other)}」？`,
+      message: `切换后，这台手机会变成 ${nameOf(other)} 的身份，小岛上的内容也会换成 TA 的。共享空间不受影响，随时可以再切回来。`,
+      confirmText: '确认切换',
+      danger: false,
+      onConfirm: async () => {
+        sync.identity = other;
+        saveSync();
+        closeModal();
+        render();
+        updateSyncUI();
+        syncNotifyConfig();
+        toast(`好，现在你是 ${nameOf(other)}`);
+        if (isSyncConfigured()) await syncNow({ silent: true });
+      },
+    });
+  }
+
+  async function openPlaceMap(id) {
+    const place = state.wishes.places.find((item) => item.id === id);
+    if (!place) return;
+    const query = encodeURIComponent([place.name, place.city, place.address].filter(Boolean).join(' '));
+    const url = place.mapUrl || `geo:0,0?q=${query}`;
+    const plugin = notifyPlugin();
+    if (isNativeApp() && plugin) {
+      try {
+        await plugin.openExternal({ url });
+        return;
+      } catch (error) {
+        toast('没有找到能打开地图的应用');
+        return;
+      }
+    }
+    if (/^https?:/i.test(url)) openExternal(url);
+    else toast('装到手机上就可以直接跳地图了');
+  }
+
+  /* ------------------------------------------------------------------------
      Date / anniversary calculations
      ------------------------------------------------------------------------ */
 
@@ -1947,19 +2302,61 @@
     return [...state.moments].sort((a, b) => new Date(b.date) - new Date(a.date));
   }
 
-  function recipePalette(recipe) {
-    const text = `${recipe.name}${recipe.emoji}`;
+  const RECENT_DAYS = 3;
+
+  function recentCutoff() {
+    const start = todayStart();
+    start.setDate(start.getDate() - (RECENT_DAYS - 1));
+    return start;
+  }
+
+  function recentMoments() {
+    const cutoff = recentCutoff().getTime();
+    return sortedMoments().filter((moment) => {
+      const time = new Date(moment.date).getTime();
+      return !Number.isNaN(time) && time >= cutoff;
+    });
+  }
+
+  function olderMoments() {
+    const cutoff = recentCutoff().getTime();
+    return sortedMoments().filter((moment) => {
+      const time = new Date(moment.date).getTime();
+      return Number.isNaN(time) || time < cutoff;
+    });
+  }
+
+  function dishPalette(dish) {
+    const text = `${dish.name}${dish.emoji}`;
     const sum = Array.from(text).reduce((total, char) => total + (char.codePointAt(0) || 0), 0);
     return `palette-${sum % 6}`;
   }
 
-  function dailyRecipe() {
-    if (!state.recipes.length) return null;
-    return state.recipes[dayOfYear() % state.recipes.length];
+  function dailyDish() {
+    const dishes = state.wishes.dishes;
+    if (!dishes.length) return null;
+    return dishes[dayOfYear() % dishes.length];
   }
 
   function currentDinner() {
-    return state.recipes.find((recipe) => recipe.id === ui.dinnerId) || dailyRecipe();
+    return state.wishes.dishes.find((dish) => dish.id === ui.dinnerId) || dailyDish();
+  }
+
+  function sortedPlaces() {
+    return [...state.wishes.places].sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'wanted' ? -1 : 1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+  }
+
+  function placeScene(scene) {
+    return PLACE_SCENES[scene] || PLACE_SCENES.other;
+  }
+
+  function wantedByLabel(place) {
+    const names = (place.wantedBy || []).map((role) => nameOf(role));
+    if (names.length >= 2) return '都想吃';
+    return names.length ? `${names[0]}想吃` : '还没人选';
   }
 
   function moodOf(moment) {
@@ -2026,8 +2423,31 @@
     const version = $('#avatar-menu-version');
     if (version) version.textContent = `v${currentVersionName}`;
     $$('.avatar-btn').forEach((button) => {
-      button.classList.toggle('active', getRoute() === 'settings');
+      button.classList.toggle('active', isSettingsOpen());
     });
+  }
+
+  function updateSpaceToggle() {
+    const personal = getRoute() === 'me';
+    $$('.space-toggle').forEach((button) => {
+      button.classList.toggle('is-personal', personal);
+      button.setAttribute('aria-label', personal ? '切换到我们的空间' : '切换到我的小岛');
+      button.setAttribute('title', personal ? '回到我们的空间' : '去我的小岛');
+      const label = button.querySelector('.space-toggle-label');
+      if (label) label.textContent = personal ? '我的小岛' : '我们的空间';
+      const use = button.querySelector('use');
+      if (use) use.setAttribute('href', personal ? '#i-island' : '#i-heart');
+    });
+  }
+
+  function switchSpace() {
+    if (getRoute() === 'me') {
+      window.location.hash = ui.lastShared && ui.lastShared !== 'me' ? ui.lastShared : 'home';
+    } else {
+      ui.lastShared = getRoute() === 'history' ? 'moments' : getRoute();
+      window.location.hash = 'me';
+    }
+    window.scrollTo({ top: 0, behavior: 'auto' });
   }
 
   function toggleAvatarMenu(force) {
@@ -2083,21 +2503,23 @@
 
   function updateFab(route) {
     const fab = $('#fab');
-    if (fab) fab.classList.toggle('hidden', route !== 'home' || ui.space === 'personal');
+    if (fab) fab.classList.toggle('hidden', route !== 'home');
   }
 
   function getRoute() {
     const hash = String(window.location.hash || '').replace(/^#\/?/, '').split('?')[0];
-    return ['home', 'moments', 'recipes', 'days', 'settings'].includes(hash) ? hash : 'home';
+    if (hash === 'recipes') return 'wishes';
+    return ['home', 'moments', 'wishes', 'days', 'me', 'history'].includes(hash) ? hash : 'home';
   }
 
   function updateTitle(route) {
     const titles = {
       home: '小满 · 两个人的小小宇宙',
       moments: '日常 · 小满',
-      recipes: '菜谱 · 小满',
+      history: '历史记录 · 小满',
+      wishes: '想吃 · 小满',
       days: '纪念日 · 小满',
-      settings: '设置 · 小满',
+      me: '我的小岛 · 小满',
     };
     document.title = titles[route] || titles.home;
   }
@@ -2108,10 +2530,11 @@
 
   function render() {
     const route = getRoute();
-    const routeChanged = Boolean(ui.lastRoute && (ui.lastRoute !== route || ui.lastSpace !== ui.space));
+    const routeChanged = Boolean(ui.lastRoute && ui.lastRoute !== route);
     applyTheme();
     updateSidebar();
     updateAvatar();
+    updateSpaceToggle();
     setActiveNav(route);
     updateFab(route);
     updateTitle(route);
@@ -2119,26 +2542,28 @@
     const views = {
       home: homeView,
       moments: momentsView,
-      recipes: recipesView,
+      history: historyView,
+      wishes: wishesView,
       days: daysView,
-      settings: settingsView,
+      me: meView,
     };
 
     const view = $('#view');
-    view.innerHTML = views[route]();
+    view.innerHTML = (views[route] || homeView)();
     if (routeChanged) {
       view.classList.remove('view-enter');
       void view.offsetWidth;
       view.classList.add('view-enter');
     }
     ui.lastRoute = route;
-    ui.lastSpace = ui.space;
-    if (route === 'moments') applyMomentFilter();
-    if (route === 'recipes') applyRecipeFilters();
+    if (route === 'moments' || route === 'history') applyMomentFilter();
+    if (route === 'wishes') applyWishFilters();
     if (route === 'home') {
       animateHeroDays();
       maybeCelebrate();
     }
+    hydratePhotos();
+    if (isSettingsOpen()) renderSettingsContent();
   }
 
   function sectionHead(title, action = '') {
@@ -2157,7 +2582,7 @@
   function welcomeBanner() {
     return `<div class="welcome-banner rise">
       ${icon('sparkles')}
-      <p>这是给你们俩的小空间。先去 <a href="#settings">设置</a> 里换成你们的名字和在一起的日子吧。</p>
+      <p>这是给你们俩的小空间。先去 <button class="text-link" type="button" data-action="open-settings">设置</button> 里换成你们的名字和在一起的日子吧。</p>
       <button class="icon-btn" type="button" data-action="dismiss-banner" aria-label="知道了">${icon('close')}</button>
     </div>`;
   }
@@ -2228,7 +2653,6 @@
   }
 
   function miniMoment(moment) {
-    const photo = safePhoto(moment.photo);
     const wish = moment.kind === 'wish';
     return `<article class="moment-mini">
       <div class="moment-mini-head">
@@ -2237,31 +2661,31 @@
         <span class="mini-time">${esc(fmtMomentTime(moment.date))}</span>
       </div>
       <p>${wish ? `<span class="mini-wish">${esc(moment.foodEmoji || '🍲')} 想吃</span>` : ''}${esc(moment.text)}</p>
-      ${photo ? `<img class="mini-photo" src="${photo}" alt="日常照片">` : ''}
+      ${photoImg(moment.photo, 'mini-photo')}
       <div class="moment-mini-foot">${moodChip(moment)}</div>
     </article>`;
   }
 
-  function dinnerPanel(recipe) {
-    if (!recipe) {
+  function dinnerPanel(dish) {
+    if (!dish) {
       return `<section class="side-panel dinner-panel rise" style="--d:2">
         ${sectionHead('今晚吃什么', '<span class="mini-time">灵感</span>')}
-        ${emptyState('🍳', '菜谱还是空的', '先收藏一道你们想一起做的菜吧。', `<button class="btn btn-primary btn-sm" data-action="add-recipe">${icon('plus')} 添加菜谱</button>`, true)}
+        ${emptyState('🍳', '还没有想吃的菜', '先收藏一道你们想一起做的菜吧。', `<button class="btn btn-primary btn-sm" data-action="add-dish">${icon('plus')} 加一道想吃的</button>`, true)}
       </section>`;
     }
     return `<section class="side-panel dinner-panel rise" style="--d:2">
       ${sectionHead('今晚吃什么', '<span class="mini-time">今日灵感</span>')}
-      <div class="dinner-emoji">${esc(recipe.emoji || '🍳')}</div>
-      <h3 class="dinner-name">${esc(recipe.name)}</h3>
-      <p class="dinner-desc">${esc(recipe.desc || '一起做一顿好吃的。')}</p>
+      <div class="dinner-emoji">${esc(dish.emoji || '🍳')}</div>
+      <h3 class="dinner-name">${esc(dish.name)}</h3>
+      <p class="dinner-desc">${esc(dish.desc || '一起做一顿好吃的。')}</p>
       <div class="dinner-meta">
-        <span>${icon('clock')}${recipe.time} 分钟</span>
-        <span>${esc(recipe.difficulty)}</span>
-        ${recipe.favorite ? '<span>♥ 收藏</span>' : ''}
+        <span>${icon('clock')}${dish.time} 分钟</span>
+        <span>${esc(dish.difficulty)}</span>
+        ${dish.favorite ? '<span>♥ 收藏</span>' : ''}
       </div>
       <div class="dinner-actions">
-        <button class="btn btn-ghost btn-sm" type="button" data-action="random-recipe">${icon('dice')} 换一道</button>
-        <button class="btn btn-primary btn-sm" type="button" data-action="open-recipe" data-id="${esc(recipe.id)}">看做法</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="random-dish">${icon('dice')} 换一道</button>
+        <button class="btn btn-primary btn-sm" type="button" data-action="open-dish" data-id="${esc(dish.id)}">看做法</button>
       </div>
     </section>`;
   }
@@ -2274,27 +2698,25 @@
     </section>`;
   }
 
-  function spaceBar() {
-    const personal = ui.space === 'personal';
-    return `<div class="space-bar">
-      <div class="space-switch" role="group" aria-label="切换空间">
-        <button class="${personal ? '' : 'active'}" type="button" data-action="set-space" data-space="shared">${icon('heart')} 我们的空间</button>
-        <button class="${personal ? 'active' : ''}" type="button" data-action="set-space" data-space="personal">${icon('gift')} 我的小抽屉</button>
-      </div>
-      <span class="space-caption">${personal ? '只在这个身份下出现；换手机同步后还在' : '共享为主，两个人一起看'}</span>
-    </div>`;
+  function photoImg(photo, className, alt = '照片') {
+    if (!photo) return '';
+    if (typeof photo === 'string') {
+      return `<img class="${className}" src="${photo}" alt="${esc(alt)}">`;
+    }
+    return `<img class="${className} photo-pending" data-photo-id="${esc(photo.id)}" alt="${esc(alt)}">`;
   }
 
   function homeView() {
-    if (ui.space === 'personal') return drawerView('home');
     const days = daysTogether();
     const next = nextUpcomingAnniversary();
-    const latest = sortedMoments().slice(0, 2);
+    const latest = recentMoments().slice(0, 2);
     const dinner = currentDinner();
     const prompt = dailyItem(PROMPTS);
     const today = new Date();
     const subtitle = dailyItem(SUBTITLES);
     const greetingName = sync.identity ? nameOf(sync.identity) : state.names.me;
+    const dishCount = state.wishes.dishes.length;
+    const placeCount = state.wishes.places.length;
 
     return `<header class="page-head home-head">
       <div>
@@ -2303,13 +2725,11 @@
         <p class="page-sub">${esc(subtitle)}</p>
       </div>
       <div class="head-actions">
-        <button class="btn btn-ghost" type="button" data-action="add-wish">${icon('bowl')}<span class="btn-label">想吃</span></button>
+        <button class="btn btn-ghost" type="button" data-action="go" data-route="wishes">${icon('bowl')}<span class="btn-label">想吃</span></button>
         <button class="btn btn-ghost" type="button" data-action="add-moment">${icon('edit')}<span class="btn-label">记录今天</span></button>
       </div>
     </header>
     ${state.onboarded ? '' : welcomeBanner()}
-    ${identityBanner()}
-    ${spaceBar()}
     <section class="hero">
       <div class="hero-copy">
         <div class="hero-kicker">${days.future ? '距离在一起还有' : '我们在一起'}</div>
@@ -2319,9 +2739,9 @@
         </div>
         <p class="hero-names"><strong>${esc(state.names.me)}</strong> &amp; <strong>${esc(state.names.partner)}</strong> · 从 ${fmtDateCN(state.togetherDate)} 开始</p>
         <div class="hero-chips">
-          <span>日常 <strong>${state.moments.length}</strong></span>
-          <span>菜谱 <strong>${state.recipes.length}</strong></span>
-          <span>纪念日 <strong>${state.anniversaries.length}</strong></span>
+          <a href="#moments">日常 <strong>${state.moments.length}</strong></a>
+          <a href="#wishes">想吃 <strong>${dishCount + placeCount}</strong></a>
+          <a href="#days">纪念日 <strong>${state.anniversaries.length}</strong></a>
         </div>
       </div>
       <div class="hero-art" aria-hidden="true">${heroArt()}<span class="art-note">${esc(dailyItem(ART_NOTES))}</span></div>
@@ -2330,10 +2750,10 @@
     <div class="home-grid">
       <section class="panel rise" style="--d:1">
         ${sectionHead('最近的小事', `<button class="text-link" type="button" data-action="go" data-route="moments">全部 ${icon('chevron')}</button>`)}
-        ${latest.length ? latest.map(miniMoment).join('') : emptyState('🌱', '还没有日常', '今天发生的一件小事，就可以是第一条。')}
+        ${latest.length ? latest.map(miniMoment).join('') : emptyState('🌱', '最近三天还没有新记录', '写下一件小事，或者去历史里翻翻以前的日子。', `<button class="btn btn-soft btn-sm" data-action="add-moment">${icon('plus')} 写一条</button>`)}
         <div style="display:flex;gap:7px;margin-top:14px">
           <button class="btn btn-soft" type="button" data-action="add-moment" style="flex:1">${icon('plus')} 写一条日常</button>
-          <button class="btn btn-ghost" type="button" data-action="add-wish" style="flex:none">${icon('bowl')} 想吃</button>
+          <button class="btn btn-ghost" type="button" data-action="go" data-route="history" style="flex:none">翻历史</button>
         </div>
       </section>
       <aside class="home-side">
@@ -2365,7 +2785,7 @@
 
   function wishCard(moment) {
     const planned = moment.wishStatus === 'planned';
-    return `<article class="wish-card ${planned ? 'planned' : ''}" data-author="${moment.author}">
+    return `<article class="wish-card ${planned ? 'planned' : ''}" data-author="${moment.author}" data-search="${esc(`${moment.text} ${nameOf(moment.author)}`)}">
       <span class="wish-stamp">${planned ? '已安排' : '想吃'}</span>
       <div class="wish-top">
         <div class="wish-emoji">${esc(moment.foodEmoji || '🍲')}</div>
@@ -2374,7 +2794,7 @@
           <p class="wish-text">${esc(moment.text)}</p>
         </div>
       </div>
-      ${moment.photo ? `<img class="moment-photo" src="${safePhoto(moment.photo)}" alt="想吃的照片">` : ''}
+      ${photoImg(moment.photo, 'moment-photo', '想吃的照片')}
       <div class="wish-foot">
         ${avatarFor(moment.author, 'tiny')}
         <span class="wish-author">${esc(nameOf(moment.author))}</span>
@@ -2390,8 +2810,7 @@
 
   function momentCard(moment) {
     if (moment.kind === 'wish') return wishCard(moment);
-    const photo = safePhoto(moment.photo);
-    return `<article class="moment-card" data-author="${moment.author}">
+    return `<article class="moment-card" data-author="${moment.author}" data-search="${esc(`${moment.text} ${nameOf(moment.author)}`)}">
       <div class="moment-head">
         ${avatarFor(moment.author)}
         <div class="moment-author">
@@ -2404,7 +2823,7 @@
         </div>
       </div>
       <p class="moment-text">${esc(moment.text)}</p>
-      ${photo ? `<img class="moment-photo" src="${photo}" alt="日常照片">` : ''}
+      ${photoImg(moment.photo, 'moment-photo', '日常照片')}
       <div class="moment-foot">${moodChip(moment)}</div>
     </article>`;
   }
@@ -2421,158 +2840,304 @@
 
   function personalCard(moment) {
     const gift = moment.kind === 'gift';
-    const photo = safePhoto(moment.photo);
-    return `<article class="drawer-card ${gift ? 'kind-gift' : ''}">
+    return `<article class="drawer-card ${gift ? 'kind-gift' : ''}" data-kind="${gift ? 'gift' : 'note'}" data-search="${esc(moment.text)}">
       <div class="moment-tools" style="position:absolute;top:12px;right:12px;opacity:.55">
         <button class="icon-btn" type="button" data-action="edit-moment" data-space="personal" data-id="${esc(moment.id)}" aria-label="编辑这张小纸条">${icon('edit')}</button>
         <button class="icon-btn danger" type="button" data-action="delete-moment" data-space="personal" data-id="${esc(moment.id)}" aria-label="删除这张小纸条">${icon('trash')}</button>
       </div>
       <div class="drawer-badge">${icon(gift ? 'gift' : 'sparkles')} ${gift ? '礼物计划' : '小纸条'}</div>
       <p class="moment-text">${esc(moment.text)}</p>
-      ${photo ? `<img class="moment-photo" src="${photo}" alt="小抽屉照片">` : ''}
+      ${photoImg(moment.photo, 'moment-photo', '小岛照片')}
       <div class="drawer-date">${esc(fmtMomentTime(moment.date))}</div>
     </article>`;
   }
 
-  function drawerView(route) {
+  function meView() {
     const identity = sync.identity;
     const items = sortedPersonal();
-    const name = identity ? nameOf(identity) : '';
+    const name = identity ? nameOf(identity) : state.names.me;
     const otherName = identity === 'partner' ? state.names.me : state.names.partner;
-    const title = '我的小抽屉';
-    return `<header class="page-head">
+    const noteCount = items.filter((item) => item.kind !== 'gift').length;
+    const giftCount = items.length - noteCount;
+    const filter = ui.drawerFilter || 'all';
+    const visible = items.filter((item) => {
+      if (filter === 'note') return item.kind !== 'gift';
+      if (filter === 'gift') return item.kind === 'gift';
+      return true;
+    });
+    return `<header class="page-head island-head">
       <div>
-        <p class="eyebrow">MY LITTLE DRAWER</p>
-        <h1 class="page-title">${title}</h1>
-        <p class="page-sub">给 ${esc(otherName)} 的惊喜、礼物计划，先放在这里。</p>
-      </div>
-      <div class="head-actions">
-        ${identity ? `<button class="btn btn-primary" type="button" data-action="add-personal-note">${icon('plus')}<span class="btn-label">写张小纸条</span></button>` : ''}
+        <p class="eyebrow">MY LITTLE ISLAND · 只给自己</p>
+        <h1 class="page-title">${esc(name)}的小岛</h1>
+        <p class="page-sub">这里只有你能看见。写给 ${esc(otherName)} 的惊喜、想记下来的念头，都先放在岛上。</p>
       </div>
     </header>
-    ${spaceBar()}
-    ${!identity ? `<div class="identity-banner">
-      ${icon('users')}
-      <p>先选一下你是哪一位，小抽屉才知道该打开哪一个。</p>
-      <div class="identity-picks">
-        <button type="button" data-action="choose-identity" data-identity="me">我是 ${esc(state.names.me)}</button>
-        <button type="button" data-action="choose-identity" data-identity="partner">我是 ${esc(state.names.partner)}</button>
-      </div>
-    </div>` : ''}
     <section class="drawer-hero rise">
-      <div class="drawer-kicker">${icon('gift')} PRIVATE · 只给自己</div>
-      <h1>${name ? `${esc(name)}的小抽屉` : '我的小抽屉'}</h1>
-      <p>这里不会出现在共享空间。换手机后，用自己的身份同步，它还会回来。</p>
+      <div class="drawer-kicker">${icon('gift')} PRIVATE · 不上锁，但只属于你</div>
+      <div class="island-identity">
+        <span class="avatar ${identity || 'me'}">${esc(initialOf(name))}</span>
+        <div>
+          <strong>我是 ${esc(name)}</strong>
+          <small>身份已锁定 · 小岛跟着这台手机走</small>
+        </div>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="switch-identity">切换身份</button>
+      </div>
+      <div class="island-stats">
+        <span><strong>${noteCount}</strong> 张小纸条</span>
+        <span><strong>${giftCount}</strong> 个礼物计划</span>
+        <span>${sync.lastSyncAt ? `<strong>${esc(formatSyncTime(sync.lastSyncAt))}</strong> 最近同步` : '<strong>还没同步</strong> 到云端'}</span>
+      </div>
       <div class="drawer-actions">
         <button class="btn btn-primary" type="button" data-action="add-personal-note">${icon('edit')} 写张小纸条</button>
         <button class="btn btn-ghost" type="button" data-action="add-personal-gift">${icon('gift')} 记个礼物计划</button>
       </div>
     </section>
+    <div class="filter-bar">
+      <div class="chips-row" id="drawer-filters">
+        <button class="chip ${filter === 'all' ? 'active' : ''}" type="button" data-action="filter-drawer" data-filter="all">全部 · ${items.length}</button>
+        <button class="chip ${filter === 'note' ? 'active' : ''}" type="button" data-action="filter-drawer" data-filter="note">小纸条 · ${noteCount}</button>
+        <button class="chip ${filter === 'gift' ? 'active' : ''}" type="button" data-action="filter-drawer" data-filter="gift">礼物计划 · ${giftCount}</button>
+      </div>
+    </div>
     ${items.length
-      ? `<div class="drawer-timeline">${items.map(personalCard).join('')}</div>`
-      : `<div class="drawer-empty">${emptyState('🎁', '抽屉还是空的', '可以藏一句想说的话，也可以记一个准备送出的礼物。', `<button class="btn btn-soft btn-sm" data-action="add-personal-note">${icon('plus')} 写第一张</button>`)}</div>`}
+      ? `<div class="drawer-timeline">${visible.map(personalCard).join('')}</div>`
+      : `<div class="drawer-empty">${emptyState('🎁', '小岛还是空的', '可以藏一句想说的话，也可以记一个准备送出的礼物。', `<button class="btn btn-soft btn-sm" data-action="add-personal-note">${icon('plus')} 写第一张</button>`)}</div>`}
+    <p class="count-note" style="margin-top:18px;text-align:center">小岛上的内容会跟着你的身份同步到坚果云 · 对方看不到</p>
     `;
   }
 
+  function historyLink(label = '翻翻更早的日常') {
+    return `<a class="history-link" href="#history">${icon('clock')}<span>${label}</span>${icon('chevron')}</a>`;
+  }
+
+  function groupMomentsByMonth(list) {
+    const groups = new Map();
+    list.forEach((moment) => {
+      const date = new Date(moment.date);
+      const key = Number.isNaN(date.getTime())
+        ? 'unknown'
+        : `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(moment);
+    });
+    return Array.from(groups.entries()).map(([key, moments]) => {
+      const label = key === 'unknown'
+        ? '更早'
+        : `${key.split('-')[0]}年${Number(key.split('-')[1])}月`;
+      return `<section class="timeline-group month-group" data-month="${key}">
+        <h3 class="timeline-date">${label} <small>共 ${moments.length} 条</small></h3>
+        ${moments.map(momentCard).join('')}
+      </section>`;
+    }).join('');
+  }
+
   function momentsView() {
-    if (ui.space === 'personal') return drawerView('moments');
-    const list = sortedMoments();
+    const list = recentMoments();
     const mine = list.filter((moment) => moment.author === 'me').length;
     const partner = list.length - mine;
+    const older = olderMoments().length;
     return `<header class="page-head">
       <div>
-        <p class="eyebrow">OUR LITTLE THINGS</p>
+        <p class="eyebrow">OUR LITTLE THINGS · 最近三天</p>
         <h1 class="page-title">日常碎片</h1>
-        <p class="page-sub">把普通的日子，过成值得收藏的故事。</p>
+        <p class="page-sub">只留下最近三天的热闹；更早的日子，去历史里慢慢翻。</p>
       </div>
       <div class="head-actions">
-        <button class="btn btn-ghost" type="button" data-action="add-wish">${icon('bowl')}<span class="btn-label">想吃</span></button>
+        <button class="btn btn-ghost" type="button" data-action="go" data-route="history">${icon('clock')}<span class="btn-label">历史记录</span></button>
         <button class="btn btn-primary" type="button" data-action="add-moment">${icon('plus')}<span class="btn-label">记录一件小事</span></button>
       </div>
     </header>
-    ${spaceBar()}
     <div class="filter-bar">
       <div class="chips-row" id="moment-filters">
         <button class="chip ${ui.momentFilter === 'all' ? 'active' : ''}" type="button" data-action="filter-moments" data-filter="all">全部 · ${list.length}</button>
         <button class="chip ${ui.momentFilter === 'me' ? 'active' : ''}" type="button" data-action="filter-moments" data-filter="me">${esc(state.names.me)} · ${mine}</button>
         <button class="chip ${ui.momentFilter === 'partner' ? 'active' : ''}" type="button" data-action="filter-moments" data-filter="partner">${esc(state.names.partner)} · ${partner}</button>
       </div>
-      <span class="count-note">${list.length ? '按时间倒序排列' : '还没有记录'}</span>
+      <span class="count-note">最近 3 天 · 按时间倒序</span>
     </div>
     ${list.length
       ? `<div class="timeline">${groupMoments(list)}</div>
          <div class="empty small hidden" id="moment-filter-empty">
            <span class="empty-emoji">🫧</span>
-           <strong>这一栏还没有内容</strong>
+           <strong>这一栏最近还没有内容</strong>
            <p>换个人看看，或者现在就补上一条。</p>
          </div>`
-      : emptyState('🌱', '还没有日常', '今天发生的一件小事，就可以是第一条。', `<button class="btn btn-primary btn-sm" data-action="add-moment">${icon('plus')} 写下第一条</button>`)}
+      : emptyState('🌱', '最近三天还没有日常', '今天发生的一件小事，就可以是第一条。', `<button class="btn btn-primary btn-sm" data-action="add-moment">${icon('plus')} 写下第一条</button>`)}
+    ${older ? historyLink(`翻翻更早的 ${older} 条日常`) : ''}
     `;
   }
 
-  function recipeCard(recipe) {
-    const palette = recipePalette(recipe);
-    const tags = recipe.tags.slice(0, 2);
-    const searchText = [recipe.name, recipe.desc, ...recipe.tags, ...recipe.ingredients.map((item) => item.name)].join(' ');
-    return `<article class="recipe-card" tabindex="0" role="button" data-action="open-recipe" data-id="${esc(recipe.id)}" data-search="${esc(searchText)}" data-tags="${esc(recipe.tags.join(','))}" aria-label="查看菜谱：${esc(recipe.name)}">
-      <div class="recipe-cover ${palette}">
-        <span class="recipe-emoji">${esc(recipe.emoji || '🍳')}</span>
-        <button class="recipe-fav ${recipe.favorite ? 'is-fav' : ''}" type="button" data-action="toggle-favorite" data-fav-id="${esc(recipe.id)}" aria-label="${recipe.favorite ? '取消收藏' : '收藏'}" aria-pressed="${recipe.favorite}">${icon('heart')}</button>
-        <span class="recipe-time">${icon('clock')}${recipe.time} 分钟</span>
-      </div>
-      <div class="recipe-body">
-        <h3 class="recipe-name">${esc(recipe.name)}</h3>
-        <p class="recipe-desc">${esc(recipe.desc || '一道想和 TA 一起做的菜。')}</p>
-        <div class="recipe-foot">
-          ${tags.map((tag) => `<span class="tag">${esc(tag)}</span>`).join('')}
-          ${recipe.cookedAt ? `<span class="recipe-cooked">${icon('check')}做过</span>` : ''}
-        </div>
-      </div>
-    </article>`;
-  }
-
-  function recipesView() {
-    const allTags = ['全部'];
-    state.recipes.forEach((recipe) => {
-      recipe.tags.forEach((tag) => {
-        if (!allTags.includes(tag)) allTags.push(tag);
-      });
-    });
-    if (!allTags.includes(ui.recipeTag)) ui.recipeTag = '全部';
-    const favorites = state.recipes.filter((recipe) => recipe.favorite).length;
-
+  function historyView() {
+    const all = sortedMoments();
+    const oldest = all.length ? new Date(all[all.length - 1].date) : null;
+    const fromLabel = oldest && !Number.isNaN(oldest.getTime())
+      ? `${oldest.getFullYear()}年${oldest.getMonth() + 1}月${oldest.getDate()}日`
+      : '第一天';
     return `<header class="page-head">
       <div>
-        <p class="eyebrow">OUR RECIPE BOOK</p>
-        <h1 class="page-title">我们的菜谱</h1>
-        <p class="page-sub">一起研究，一起变胖。收录 ${state.recipes.length} 道，收藏 ${favorites} 道。</p>
+        <p class="eyebrow">OUR ARCHIVE · 全部日常</p>
+        <h1 class="page-title">历史记录</h1>
+        <p class="page-sub">从 ${fromLabel} 到现在，一共 ${all.length} 条。</p>
       </div>
       <div class="head-actions">
-        <button class="btn btn-ghost" type="button" data-action="random-recipe">${icon('dice')}<span class="btn-label">随机一道</span></button>
-        <button class="btn btn-primary" type="button" data-action="add-recipe">${icon('plus')}<span class="btn-label">新菜谱</span></button>
+        <button class="btn btn-ghost" type="button" data-action="go" data-route="moments">${icon('arrow')}<span class="btn-label">回到最近</span></button>
       </div>
     </header>
     <div class="recipe-toolbar">
       <div class="search-box">
         ${icon('search')}
-        <input id="recipe-search" type="search" value="${esc(ui.recipeQuery)}" placeholder="搜菜名、食材或标签…" aria-label="搜索菜谱">
+        <input id="history-search" type="search" value="${esc(ui.momentQuery || '')}" placeholder="搜一句话、一个人…" aria-label="搜索历史日常">
       </div>
-      <div class="chips-row" id="recipe-tags">
-        ${allTags.map((tag) => `<button class="chip ${ui.recipeTag === tag ? 'active' : ''}" type="button" data-action="filter-tag" data-tag="${esc(tag)}">${esc(tag)}</button>`).join('')}
+      <div class="chips-row" id="history-filters">
+        <button class="chip ${ui.momentFilter === 'all' ? 'active' : ''}" type="button" data-action="filter-moments" data-filter="all">全部</button>
+        <button class="chip ${ui.momentFilter === 'me' ? 'active' : ''}" type="button" data-action="filter-moments" data-filter="me">${esc(state.names.me)}</button>
+        <button class="chip ${ui.momentFilter === 'partner' ? 'active' : ''}" type="button" data-action="filter-moments" data-filter="partner">${esc(state.names.partner)}</button>
       </div>
     </div>
-    <div class="recipe-grid" id="recipe-grid">
-      ${state.recipes.length
-        ? state.recipes.map(recipeCard).join('')
-        : `<div class="recipe-empty">${emptyState('🍳', '菜谱还是空的', '把你们常做的那道菜写下来吧，以后就不怕忘。', `<button class="btn btn-primary btn-sm" data-action="add-recipe">${icon('plus')} 添加第一道菜</button>`)}</div>`}
+    ${all.length
+      ? `<div class="timeline" id="history-timeline">${groupMomentsByMonth(all)}</div>
+         <div class="empty small hidden" id="moment-filter-empty">
+           <span class="empty-emoji">🔍</span>
+           <strong>没有找到这段记忆</strong>
+           <p>换个关键词试试，或者点「全部」。</p>
+         </div>`
+      : emptyState('📦', '还没有历史', '等日常多起来，这里会按月收好你们的故事。')}
+    `;
+  }
+
+  function dishCard(dish) {
+    const palette = dishPalette(dish);
+    const tags = dish.tags.slice(0, 2);
+    const searchText = [dish.name, dish.desc, ...dish.tags, ...dish.ingredients.map((item) => item.name)].join(' ');
+    return `<article class="recipe-card dish-card" tabindex="0" role="button" data-action="open-dish" data-id="${esc(dish.id)}" data-search="${esc(searchText)}" data-tags="${esc(dish.tags.join(','))}" data-who="${esc((dish.wantedBy || []).join(','))}" aria-label="查看想吃的菜：${esc(dish.name)}">
+      <div class="recipe-cover ${palette}">
+        <span class="recipe-emoji">${esc(dish.emoji || '🍳')}</span>
+        <button class="recipe-fav ${dish.favorite ? 'is-fav' : ''}" type="button" data-action="toggle-favorite" data-fav-id="${esc(dish.id)}" aria-label="${dish.favorite ? '取消收藏' : '收藏'}" aria-pressed="${dish.favorite}">${icon('heart')}</button>
+        <span class="recipe-time">${icon('clock')}${dish.time} 分钟</span>
+      </div>
+      <div class="recipe-body">
+        <h3 class="recipe-name">${esc(dish.name)}</h3>
+        <p class="recipe-desc">${esc(dish.desc || '一道想和 TA 一起做的菜。')}</p>
+        <div class="recipe-foot">
+          ${tags.map((tag) => `<span class="tag">${esc(tag)}</span>`).join('')}
+          ${dish.cookedAt ? `<span class="recipe-cooked">${icon('check')}做过</span>` : ''}
+          <span class="wanted-avatars">${(dish.wantedBy || []).map((role) => avatarFor(role, 'tiny')).join('')}</span>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  function placeCard(place) {
+    const scene = placeScene(place.scene);
+    const covered = place.status === 'visited';
+    const searchText = [place.name, place.city, place.address, place.note, ...place.dishes, ...place.tags].join(' ');
+    return `<article class="place-card ${covered ? 'is-visited' : ''}" tabindex="0" role="button" data-action="open-place" data-id="${esc(place.id)}" data-scene="${esc(place.scene)}" data-who="${esc((place.wantedBy || []).join(','))}" data-search="${esc(searchText)}" aria-label="查看想吃的店：${esc(place.name)}">
+      <div class="place-cover scene-${esc(place.scene)}">
+        ${place.photos && place.photos[0]
+          ? photoImg(place.photos[0], 'place-photo', place.name)
+          : `<span class="place-emoji">${scene.emoji}</span>`}
+        <span class="place-scene">${scene.emoji} ${scene.label}</span>
+        <button class="recipe-fav ${place.favorite ? 'is-fav' : ''}" type="button" data-action="toggle-place-favorite" data-fav-id="${esc(place.id)}" aria-label="${place.favorite ? '取消收藏' : '收藏'}" aria-pressed="${place.favorite}">${icon('heart')}</button>
+        ${covered ? '<span class="place-visited">已去过</span>' : ''}
+      </div>
+      <div class="place-body">
+        <h3 class="place-name">${esc(place.name)}</h3>
+        <p class="place-address">${place.city ? `${esc(place.city)} · ` : ''}${esc(place.address || '还没写地址')}</p>
+        ${place.dishes.length ? `<div class="place-dishes">${place.dishes.slice(0, 4).map((dish) => `<span class="tag">${esc(dish)}</span>`).join('')}</div>` : ''}
+        <div class="place-foot">
+          <span class="place-who">${(place.wantedBy || []).map((role) => avatarFor(role, 'tiny')).join('')} ${esc(wantedByLabel(place))}</span>
+          <span class="place-status">${covered ? '记一笔' : '想去'}</span>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  function dishesPanel() {
+    const dishes = state.wishes.dishes;
+    const allTags = ['全部'];
+    dishes.forEach((dish) => {
+      dish.tags.forEach((tag) => {
+        if (!allTags.includes(tag)) allTags.push(tag);
+      });
+    });
+    if (!allTags.includes(ui.dishTag)) ui.dishTag = '全部';
+    return `<div class="recipe-toolbar">
+      <div class="search-box">
+        ${icon('search')}
+        <input id="dish-search" type="search" value="${esc(ui.dishQuery)}" placeholder="搜菜名、食材或标签…" aria-label="搜索想吃的菜">
+      </div>
+      <div class="chips-row" id="dish-tags">
+        ${allTags.map((tag) => `<button class="chip ${ui.dishTag === tag ? 'active' : ''}" type="button" data-action="filter-dish-tag" data-tag="${esc(tag)}">${esc(tag)}</button>`).join('')}
+      </div>
     </div>
-    <div class="empty small hidden" id="recipe-filter-empty">
+    <div class="recipe-grid" id="dish-grid">
+      ${dishes.length
+        ? dishes.map(dishCard).join('')
+        : `<div class="recipe-empty">${emptyState('🍜', '还没有想吃的菜', '把你们馋的那道菜写下来，下次就不用想半天。', `<button class="btn btn-primary btn-sm" data-action="add-dish">${icon('plus')} 加第一道</button>`)}</div>`}
+    </div>
+    <div class="empty small hidden" id="dish-filter-empty">
       <span class="empty-emoji">🔍</span>
       <strong>没有找到这道菜</strong>
       <p>换个关键词，或者点「全部」看看。</p>
     </div>
-    <p class="count-note" id="recipe-count" style="margin-top:14px">${state.recipes.length ? `共 ${state.recipes.length} 道菜` : ''}</p>
-    `;
+    <p class="count-note" id="dish-count" style="margin-top:14px">${dishes.length ? `共 ${dishes.length} 道想吃的菜` : ''}</p>`;
+  }
+
+  function placesPanel() {
+    const places = sortedPlaces();
+    const sceneTabs = [['all', '全部'], ...Object.entries(PLACE_SCENES).map(([key, value]) => [key, `${value.emoji} ${value.label}`])];
+    return `<div class="recipe-toolbar">
+      <div class="search-box">
+        ${icon('search')}
+        <input id="place-search" type="search" value="${esc(ui.placeQuery)}" placeholder="搜店名、城市、想吃的菜…" aria-label="搜索想吃的店">
+      </div>
+      <div class="chips-row" id="place-scenes">
+        ${sceneTabs.map(([key, label]) => `<button class="chip ${ui.placeScene === key ? 'active' : ''}" type="button" data-action="filter-place-scene" data-scene="${key}">${esc(label)}</button>`).join('')}
+      </div>
+      <div class="chips-row" id="place-who">
+        ${[['all', '谁想吃都行'], ['me', `${esc(state.names.me)}想吃`], ['partner', `${esc(state.names.partner)}想吃`], ['both', '都想吃']].map(([key, label]) => `<button class="chip ${ui.placeWho === key ? 'active' : ''}" type="button" data-action="filter-place-who" data-who="${key}">${label}</button>`).join('')}
+      </div>
+    </div>
+    <div class="place-grid" id="place-grid">
+      ${places.length
+        ? places.map(placeCard).join('')
+        : `<div class="recipe-empty">${emptyState('🏮', '还没有想吃的店', '把路边看到的小店、旅行里想再去的馆子收藏进来吧。', `<button class="btn btn-primary btn-sm" data-action="add-place">${icon('plus')} 收藏第一家</button>`)}</div>`}
+    </div>
+    <div class="empty small hidden" id="place-filter-empty">
+      <span class="empty-emoji">🗺️</span>
+      <strong>这一栏还没有店</strong>
+      <p>换个分类，或者再收藏一家。</p>
+    </div>
+    <p class="count-note" id="place-count" style="margin-top:14px">${places.length ? `共 ${places.length} 家想吃的店` : ''}</p>`;
+  }
+
+  function wishesView() {
+    const tab = ui.wishTab === 'places' ? 'places' : 'dishes';
+    const dishes = state.wishes.dishes;
+    const places = state.wishes.places;
+    return `<header class="page-head">
+      <div>
+        <p class="eyebrow">OUR CRAVING LIST</p>
+        <h1 class="page-title">想吃</h1>
+        <p class="page-sub">想吃的菜、想去的店，都先收在这里，等一个一起去的时间。</p>
+      </div>
+      <div class="head-actions">
+        ${tab === 'dishes'
+          ? `<button class="btn btn-ghost" type="button" data-action="random-dish">${icon('dice')}<span class="btn-label">随机一道</span></button>
+             <button class="btn btn-primary" type="button" data-action="add-dish">${icon('plus')}<span class="btn-label">加一道菜</span></button>`
+          : `<button class="btn btn-ghost" type="button" data-action="random-place">${icon('dice')}<span class="btn-label">随便去一家</span></button>
+             <button class="btn btn-primary" type="button" data-action="add-place">${icon('plus')}<span class="btn-label">收藏一家店</span></button>`}
+      </div>
+    </header>
+    <div class="wish-tabs" role="tablist">
+      <button class="wish-tab ${tab === 'dishes' ? 'active' : ''}" type="button" role="tab" aria-selected="${tab === 'dishes'}" data-action="wish-tab" data-tab="dishes">
+        ${icon('bowl')}<span>想吃的菜</span><small>${dishes.length}</small>
+      </button>
+      <button class="wish-tab ${tab === 'places' ? 'active' : ''}" type="button" role="tab" aria-selected="${tab === 'places'}" data-action="wish-tab" data-tab="places">
+        ${icon('home')}<span>想吃的店</span><small>${places.length}</small>
+      </button>
+    </div>
+    ${tab === 'dishes' ? dishesPanel() : placesPanel()}`;
   }
 
   function annivFeature(item) {
@@ -2643,44 +3208,110 @@
     `;
   }
 
-  function settingsView() {
+  const SETTINGS_TITLES = {
+    basic: '基础设置',
+    sync: '同步设置',
+    update: '更新设置',
+    notify: '通知设置',
+    data: '数据与备份',
+    about: '关于小满',
+  };
+
+  function isSettingsOpen() {
+    const layer = $('#settings-layer');
+    return Boolean(layer && layer.classList.contains('open'));
+  }
+
+  function openSettings(tab = 'basic') {
+    ui.settingsTab = SETTINGS_TITLES[tab] ? tab : 'basic';
+    const layer = $('#settings-layer');
+    if (!layer) return;
+    layer.classList.add('open');
+    layer.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('settings-open');
+    updateBodyLock();
+    updateAvatar();
+    renderSettingsContent();
+    window.setTimeout(() => {
+      const focusable = $('#settings-content input:not([type="hidden"]):not([type="file"]), #settings-content select, #settings-content textarea');
+      if (focusable) focusable.focus({ preventScroll: true });
+    }, 90);
+  }
+
+  function closeSettings() {
+    const layer = $('#settings-layer');
+    if (!layer || !layer.classList.contains('open')) return;
+    layer.classList.remove('open');
+    layer.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('settings-open');
+    updateBodyLock();
+    updateAvatar();
+  }
+
+  function switchSettingsTab(tab) {
+    if (!SETTINGS_TITLES[tab]) return;
+    ui.settingsTab = tab;
+    renderSettingsContent();
+  }
+
+  function renderSettingsContent() {
+    const content = $('#settings-content');
+    if (!content) return;
+    const tab = SETTINGS_TITLES[ui.settingsTab] ? ui.settingsTab : 'basic';
+    $$('#settings-nav button').forEach((button) => {
+      const active = button.dataset.tab === tab;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', String(active));
+    });
+    const map = {
+      basic: settingsBasicHTML,
+      sync: syncSettingsPanelHTML,
+      update: updateSettingsPanelHTML,
+      notify: settingsNotifyHTML,
+      data: settingsDataHTML,
+      about: settingsAboutHTML,
+    };
+    content.innerHTML = (map[tab] || settingsBasicHTML)();
+    const title = $('#settings-title');
+    if (title) title.textContent = SETTINGS_TITLES[tab];
+    updateSyncUI();
+    updateUpdateUI();
+    if (typeof refreshCurrentVersion === 'function') refreshCurrentVersion();
+    if (tab === 'notify') refreshNotifyPermission();
+  }
+
+  function settingsBasicHTML() {
     const identity = sync.identity;
     const myName = identity ? nameOf(identity) : '';
     const otherName = identity ? nameOf(identity === 'me' ? 'partner' : 'me') : '';
-    return `<header class="page-head settings-head">
-      <div>
-        <p class="eyebrow">OUR LITTLE HOME</p>
-        <h1 class="page-title">我们的小屋</h1>
-        <p class="page-sub">名字、颜色、备份，都放在这里。</p>
-      </div>
-      <button class="back-btn" type="button" data-action="back">← 返回</button>
-    </header>
-    <div class="settings-grid">
-      <form class="settings-panel" id="profile-form">
+    return `<section class="settings-panel">
         <h2>我们是谁</h2>
         <p class="settings-note">只改你自己的名字；TA 的名字会从对方手机同步过来。</p>
-        ${identity ? `<div class="form-grid">
-          <div class="field">
-            <label for="profile-me">我的名字</label>
-            <input class="input" id="profile-me" name="myName" maxlength="12" value="${esc(myName)}" autocomplete="off" required>
+        ${identity ? `<form id="profile-form">
+          <div class="form-grid">
+            <div class="field">
+              <label for="profile-me">我的名字</label>
+              <input class="input" id="profile-me" name="myName" maxlength="12" value="${esc(myName)}" autocomplete="off" required>
+            </div>
+            <div class="field">
+              <label>TA 的名字</label>
+              <div class="readonly-name"><strong>${esc(otherName)}</strong><span>由 TA 自己改</span></div>
+            </div>
+            <div class="field span-2">
+              <label for="profile-date">在一起的日子 <span class="field-hint">首页会从这一天开始数</span></label>
+              <input class="input" id="profile-date" name="togetherDate" type="date" value="${esc(state.togetherDate)}" required>
+            </div>
           </div>
-          <div class="field">
-            <label>TA 的名字</label>
-            <div class="readonly-name"><strong>${esc(otherName)}</strong><span>由 TA 自己改</span></div>
+          <div class="form-actions">
+            <button class="btn btn-ghost" type="button" data-action="switch-identity">切换身份</button>
+            <span class="spacer"></span>
+            <button class="btn btn-primary" type="submit">${icon('check')} 保存我的名字</button>
           </div>
-          <div class="field span-2">
-            <label for="profile-date">在一起的日子 <span class="field-hint">首页会从这一天开始数</span></label>
-            <input class="input" id="profile-date" name="togetherDate" type="date" value="${esc(state.togetherDate)}" required>
-          </div>
-        </div>
-        <div class="form-actions">
-          <span class="spacer"></span>
-          <button class="btn btn-primary" type="submit">${icon('check')} 保存我的名字</button>
-        </div>` : `<div class="identity-required">
+        </form>` : `<div class="identity-required">
           <p>先选择你是哪一位，再写名字。</p>
           <button class="btn btn-soft" type="button" data-action="open-identity">选择身份</button>
         </div>`}
-      </form>
+      </section>
 
       <section class="settings-panel">
         <h2>换一个心情</h2>
@@ -2693,52 +3324,60 @@
           </button>`).join('')}
         </div>
         <div class="motion-setting">
-          <div class="motion-copy"><strong>动画强度</strong><span>只改变过渡和反馈的轻重</span></div>
+          <div class="motion-copy"><strong>动画强度</strong><span>标准最活泼，轻微更安静</span></div>
           <div class="motion-options">
             ${MOTION_LEVELS.map((level) => `<button type="button" class="${ui.motion === level ? 'active' : ''}" data-action="set-motion" data-motion="${level}">${MOTION_NAMES[level]}</button>`).join('')}
           </div>
         </div>
         <div class="privacy-box" style="margin-top:18px">
           ${icon('sparkles')}
-          <p>小提示：照片会先压缩再保存，所以不用心疼手机内存。</p>
+          <p>小提示：照片会自动压缩，并单独放进坚果云的 photos 文件夹，不占手机空间。</p>
         </div>
-      </section>
+      </section>`;
+  }
 
-      <section class="settings-panel full">
-        <h2>我们的数据</h2>
-        <p class="settings-note">导出一份备份，或者把整个小空间搬到另一台设备。</p>
+  function settingsDataHTML() {
+    return `<section class="settings-panel">
+        <h2>备份与恢复</h2>
+        <p class="settings-note">导出一份完整备份（含照片），或者把整个小空间搬到另一台设备。</p>
         <div class="data-actions">
           <button class="btn btn-ghost" type="button" data-action="export-data">${icon('download')} 导出数据</button>
           <button class="btn btn-ghost" type="button" data-action="import-data">${icon('upload')} 导入数据</button>
         </div>
         <div class="privacy-box">
           ${icon('lock')}
-          <p>默认只保存在本机。开启「两台手机同步」后，会通过你们自己的坚果云 WebDAV 同步，不经过第三方服务器。换设备时也可以先导出，再在新设备上导入。</p>
+          <p>默认只保存在本机。开启同步后，文字通过你们自己的坚果云 WebDAV 同步，照片放在同一个文件夹的 photos 子目录里，不经过第三方服务器。</p>
         </div>
       </section>
-
-      ${syncSettingsPanelHTML()}
-
-      ${updateSettingsPanelHTML()}
-
-      <section class="settings-panel">
-        <h2>一些说明</h2>
-        <ul class="about-lines">
-          <li>双击打开就能用，不需要联网，也没有账号。</li>
-          <li>清理浏览器数据前，记得先导出备份。</li>
-          <li>两个人共用一台设备时，切换「我 / TA」来记录。</li>
-          <li>两台手机同步需要同一个坚果云账号的应用密码。</li>
-        </ul>
-      </section>
-
       <section class="settings-panel danger-zone">
         <h2>重新开始</h2>
         <p class="settings-note">清空现在的内容，回到最初的示例数据。</p>
         <button class="btn btn-ghost" type="button" data-action="reset-data" style="color:var(--danger);border-color:#ecd2cb">${icon('refresh')} 恢复示例数据</button>
-      </section>
-    </div>
-    <p class="count-note" style="margin-top:22px;text-align:center">小满 · 为两个人手写 · <span id="app-version-label">v${currentVersionName}</span></p>
-    `;
+      </section>`;
+  }
+
+  function settingsAboutHTML() {
+    return `<section class="settings-panel">
+        <div class="about-hero">
+          <span class="brand-mark small"><svg viewBox="0 0 48 48" aria-hidden="true">
+            <ellipse cx="18" cy="27" rx="10" ry="13" fill="currentColor" transform="rotate(-8 18 27)"/>
+            <ellipse cx="31" cy="28" rx="9" ry="12" fill="#7f9b7a" transform="rotate(8 31 28)"/>
+            <circle cx="15" cy="25" r="1.15" fill="#fff8ee"/><circle cx="21" cy="25" r="1.15" fill="#fff8ee"/>
+            <circle cx="28" cy="26" r="1.15" fill="#fff8ee"/><circle cx="34" cy="26" r="1.15" fill="#fff8ee"/>
+          </svg></span>
+          <div><strong>小满</strong><small>两个人的小小宇宙 · v${esc(currentVersionName)}</small></div>
+        </div>
+        <ul class="about-lines">
+          <li>双击打开就能用，不需要联网，也没有账号。</li>
+          <li>两个人的小空间通过自己的坚果云同步，不经过第三方服务器。</li>
+          <li>照片单独存放在坚果云 ${esc(sync.folder || DEFAULT_SYNC_FOLDER)}/photos/，换手机同步后会按需下载。</li>
+          <li>清理浏览器或应用数据前，记得先导出一份备份。</li>
+        </ul>
+        <div class="data-actions" style="margin-top:16px">
+          <button class="btn btn-ghost" type="button" data-action="check-update">${icon('download')} 检查更新</button>
+          <button class="btn btn-ghost" type="button" data-action="open-release-page">打开发布页</button>
+        </div>
+      </section>`;
   }
 
   /* ------------------------------------------------------------------------
@@ -2746,11 +3385,14 @@
      ------------------------------------------------------------------------ */
 
   function applyMomentFilter() {
+    const query = String(ui.momentQuery || '').trim().toLowerCase();
     let visibleTotal = 0;
     $$('.timeline-group').forEach((group) => {
       let visible = 0;
       $$('.moment-card, .wish-card', group).forEach((card) => {
-        const show = ui.momentFilter === 'all' || card.dataset.author === ui.momentFilter;
+        const authored = ui.momentFilter === 'all' || card.dataset.author === ui.momentFilter;
+        const matched = !query || String(card.dataset.search || '').toLowerCase().includes(query);
+        const show = authored && matched;
         card.classList.toggle('hidden', !show);
         if (show) visible += 1;
       });
@@ -2761,23 +3403,48 @@
     if (empty) empty.classList.toggle('hidden', visibleTotal !== 0);
   }
 
-  function applyRecipeFilters() {
-    const query = ui.recipeQuery.trim().toLowerCase();
+  function applyWishFilters() {
+    if (ui.wishTab === 'places') {
+      const query = ui.placeQuery.trim().toLowerCase();
+      let visible = 0;
+      $$('#place-grid .place-card').forEach((card) => {
+        const who = String(card.dataset.who || '').split(',').filter(Boolean);
+        const matchesScene = ui.placeScene === 'all' || card.dataset.scene === ui.placeScene;
+        const matchesWho = ui.placeWho === 'all'
+          || (ui.placeWho === 'both' ? who.length >= 2 : who.includes(ui.placeWho));
+        const matchesQuery = !query || String(card.dataset.search || '').toLowerCase().includes(query);
+        const show = matchesScene && matchesWho && matchesQuery;
+        card.classList.toggle('hidden', !show);
+        if (show) visible += 1;
+      });
+      const empty = $('#place-filter-empty');
+      if (empty) empty.classList.toggle('hidden', visible !== 0);
+      const count = $('#place-count');
+      if (count) {
+        const total = state.wishes.places.length;
+        count.textContent = total
+          ? (query || ui.placeScene !== 'all' || ui.placeWho !== 'all' ? `找到 ${visible} 家店` : `共 ${total} 家想吃的店`)
+          : '';
+      }
+      return;
+    }
+    const query = ui.dishQuery.trim().toLowerCase();
     let visible = 0;
-    $$('#recipe-grid .recipe-card').forEach((card) => {
+    $$('#dish-grid .recipe-card').forEach((card) => {
       const tags = String(card.dataset.tags || '').split(',');
       const matchesQuery = !query || String(card.dataset.search || '').toLowerCase().includes(query);
-      const matchesTag = ui.recipeTag === '全部' || tags.includes(ui.recipeTag);
+      const matchesTag = ui.dishTag === '全部' || tags.includes(ui.dishTag);
       const show = matchesQuery && matchesTag;
       card.classList.toggle('hidden', !show);
       if (show) visible += 1;
     });
-    const empty = $('#recipe-filter-empty');
+    const empty = $('#dish-filter-empty');
     if (empty) empty.classList.toggle('hidden', visible !== 0);
-    const count = $('#recipe-count');
+    const count = $('#dish-count');
     if (count) {
-      count.textContent = state.recipes.length
-        ? (query || ui.recipeTag !== '全部' ? `找到 ${visible} 道菜` : `共 ${state.recipes.length} 道菜`)
+      const total = state.wishes.dishes.length;
+      count.textContent = total
+        ? (query || ui.dishTag !== '全部' ? `找到 ${visible} 道菜` : `共 ${total} 道想吃的菜`)
         : '';
     }
   }
@@ -2858,6 +3525,11 @@
   function closeModal() {
     const modal = $('#modal');
     if (!modal || !modal.classList.contains('open')) return;
+    if (modal.classList.contains('blocking') && !(sync && sync.identity)) {
+      toast('先选一下你是哪一位，之后就不问了');
+      return;
+    }
+    modal.classList.remove('blocking');
     modal.classList.remove('open');
     modal.setAttribute('aria-hidden', 'true');
     $('#modal-body').innerHTML = '';
@@ -2891,7 +3563,9 @@
   }
 
   function updateBodyLock() {
-    const open = $('#modal').classList.contains('open') || $('#confirm').classList.contains('open');
+    const open = $('#modal').classList.contains('open')
+      || $('#confirm').classList.contains('open')
+      || isSettingsOpen();
     document.body.classList.toggle('modal-open', open);
   }
 
@@ -2908,12 +3582,13 @@
      Forms
      ------------------------------------------------------------------------ */
 
-  function authorSegmented(author) {
-    return `<div class="segmented" role="group" aria-label="谁记录的">
-      <button type="button" class="${author === 'me' ? 'active' : ''}" data-action="set-author" data-author="me">我 · ${esc(state.names.me)}</button>
-      <button type="button" class="${author === 'partner' ? 'active' : ''}" data-action="set-author" data-author="partner">TA · ${esc(state.names.partner)}</button>
-    </div>
-    <input type="hidden" name="author" value="${author}">`;
+  function authorNote() {
+    const identity = sync.identity || 'me';
+    return `<div class="compose-author">
+      ${avatarFor(identity, 'tiny')}
+      <span>以 <strong>${esc(nameOf(identity))}</strong> 的身份记录</span>
+      <button class="text-link" type="button" data-action="switch-identity">不是本人？</button>
+    </div>`;
   }
 
   function moodPicker(current) {
@@ -2925,31 +3600,27 @@
 
   function photoZoneInner(photo) {
     if (photo) {
-      return `<img class="photo-preview" src="${photo}" alt="照片预览">
-        <div class="photo-copy"><strong>照片已添加</strong><small>会压缩后保存在本机</small></div>
+      return `${photoImg(photo, 'photo-preview', '照片预览')}
+        <div class="photo-copy"><strong>照片已添加</strong><small>会压缩后放进坚果云的 photos 文件夹</small></div>
         <div class="photo-actions">
+          <button class="btn btn-ghost btn-sm" type="button" data-action="photo-camera">${icon('camera')} 重拍</button>
           <button class="btn btn-ghost btn-sm" type="button" data-action="photo-trigger">换一张</button>
           <button class="icon-btn danger" type="button" data-action="remove-photo" aria-label="移除照片">${icon('trash')}</button>
         </div>`;
     }
-    return `<span class="photo-placeholder">${icon('camera')}<span class="photo-copy"><strong>加一张照片</strong><small>可选 · 会压缩保存</small></span></span>
-      <div class="photo-actions"><button class="btn btn-ghost btn-sm" type="button" data-action="photo-trigger">选择</button></div>`;
+    return `<span class="photo-placeholder">${icon('camera')}<span class="photo-copy"><strong>拍照或选一张</strong><small>可选 · 自动压缩，不占太多空间</small></span></span>
+      <div class="photo-actions">
+        <button class="btn btn-primary btn-sm" type="button" data-action="photo-camera">${icon('camera')} 拍照</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="photo-trigger">从相册选</button>
+      </div>`;
   }
 
   function composeCopy(space, kind) {
-    if (kind === 'wish') {
-      return {
-        label: '想吃什么',
-        placeholder: '比如：突然好想吃火锅，要那种咕嘟咕嘟的。',
-        hint: '会作为一张「想吃」卡片，出现在我们的空间。',
-        icon: 'bowl',
-      };
-    }
     if (kind === 'gift') {
       return {
-        label: '想送她什么',
-        placeholder: '想送她什么？为什么想送？先偷偷记下来。',
-        hint: '只会放进「我的小抽屉」，不会出现在共享空间。',
+        label: '想送 TA 什么',
+        placeholder: '想送 TA 什么？为什么想送？先偷偷记下来。',
+        hint: '只会放进「我的小岛」，不会出现在我们的空间。',
         icon: 'gift',
       };
     }
@@ -2957,8 +3628,8 @@
       return {
         label: '想对自己说点什么',
         placeholder: '一句话、一个秘密、一个还没说出口的念头…',
-        hint: '只会放进「我的小抽屉」，换手机同步后还在。',
-        icon: 'gift',
+        hint: '只会放进「我的小岛」，换手机同步后还在。',
+        icon: 'sparkles',
       };
     }
     return {
@@ -2969,105 +3640,33 @@
     };
   }
 
-  function syncComposeUI(space, kind) {
-    const form = $('#moment-form');
-    if (!form) return;
-    form.dataset.space = space;
-    form.dataset.kind = kind;
-    const spaceInput = $('#compose-space');
-    const kindInput = $('#compose-kind');
-    if (spaceInput) spaceInput.value = space;
-    if (kindInput) kindInput.value = kind;
-    $$('#compose-space-tabs .compose-tab').forEach((button) => {
-      button.classList.toggle('active', button.dataset.space === space);
-    });
-    $$('#compose-kind-shared .compose-tab').forEach((button) => {
-      button.classList.toggle('active', button.dataset.kind === kind);
-    });
-    $$('#compose-kind-personal .compose-tab').forEach((button) => {
-      button.classList.toggle('active', button.dataset.kind === kind);
-    });
-    const sharedKinds = $('#compose-kind-shared');
-    const personalKinds = $('#compose-kind-personal');
-    if (sharedKinds) sharedKinds.classList.toggle('hidden', space !== 'shared');
-    if (personalKinds) personalKinds.classList.toggle('hidden', space !== 'personal');
-    const sharedAuthor = $('#compose-author-shared');
-    const personalAuthor = $('#compose-author-personal');
-    if (sharedAuthor) sharedAuthor.classList.toggle('hidden', space !== 'shared');
-    if (personalAuthor) personalAuthor.classList.toggle('hidden', space !== 'personal');
-    const wishFields = $('#wish-fields');
-    if (wishFields) wishFields.classList.toggle('hidden', kind !== 'wish');
-    const copy = composeCopy(space, kind);
-    const label = $('#moment-text-label');
-    if (label) label.innerHTML = `${copy.label} <span class="char-count" id="moment-text-count">${Array.from($('#moment-text')?.value || '').length}/800</span>`;
-    const textarea = $('#moment-text');
-    if (textarea) textarea.placeholder = copy.placeholder;
-    const hint = $('#compose-hint');
-    if (hint) hint.innerHTML = `${icon(copy.icon)}<span>${copy.hint}</span>`;
+  function photoJson(photo) {
+    if (!photo) return '';
+    return typeof photo === 'string' ? photo : JSON.stringify(photo);
   }
 
   function momentForm(moment = null, prompt = '', options = {}) {
     const editing = Boolean(moment);
-    const space = options.space || (moment && moment.space) || 'shared';
-    const kind = options.kind || (moment && moment.kind) || (space === 'personal' ? 'note' : 'moment');
-    const photo = moment ? safePhoto(moment.photo) : '';
-    const author = moment ? moment.author : (sync.identity || 'me');
+    const space = options.space === 'personal' ? 'personal' : 'shared';
+    const kind = space === 'personal'
+      ? (options.kind === 'gift' || (moment && moment.kind === 'gift') ? 'gift' : 'note')
+      : 'moment';
+    const photo = moment ? normalizePhoto(moment.photo) : '';
     const mood = moment ? moment.mood : 'happy';
     const date = moment ? toLocalInput(moment.date) : toLocalInput();
-    const foodEmoji = moment ? (moment.foodEmoji || '🍲') : '🍲';
     const copy = composeCopy(space, kind);
-    const wish = kind === 'wish';
-
-    const spaceTabs = editing ? '' : `<div class="compose-tabs" id="compose-space-tabs">
-      <button class="compose-tab ${space === 'shared' ? 'active' : ''}" type="button" data-action="set-compose-space" data-space="shared">
-        ${icon('heart')}<span><strong>发给我们</strong><small>默认，两个人都能看</small></span>
-      </button>
-      <button class="compose-tab ${space === 'personal' ? 'active' : ''}" type="button" data-action="set-compose-space" data-space="personal">
-        ${icon('gift')}<span><strong>我的小抽屉</strong><small>只给自己，藏惊喜</small></span>
-      </button>
-    </div>
-    <p class="compose-hint" id="compose-hint">${icon(copy.icon)}<span>${copy.hint}</span></p>`;
 
     return `<form id="moment-form" data-id="${editing ? esc(moment.id) : ''}" data-space="${space}" data-kind="${kind}">
-      <input type="hidden" name="space" id="compose-space" value="${space}">
-      <input type="hidden" name="kind" id="compose-kind" value="${kind}">
+      <input type="hidden" name="space" value="${space}">
+      <input type="hidden" name="kind" value="${kind}">
       ${prompt ? `<div class="welcome-banner" style="margin:0 0 14px">${icon('sparkles')}<p>今天的灵感：${esc(prompt)}</p></div>` : ''}
-      ${spaceTabs}
-      <div class="compose-tabs ${space === 'shared' ? '' : 'hidden'}" id="compose-kind-shared">
-        <button class="compose-tab ${kind === 'moment' ? 'active' : ''}" type="button" data-action="set-compose-kind" data-kind="moment">
-          ${icon('edit')}<span><strong>日常</strong><small>记录今天的小事</small></span>
-        </button>
-        <button class="compose-tab ${kind === 'wish' ? 'active' : ''}" type="button" data-action="set-compose-kind" data-kind="wish">
-          ${icon('bowl')}<span><strong>想吃</strong><small>一张想吃卡片</small></span>
-        </button>
-      </div>
-      <div class="compose-tabs ${space === 'personal' ? '' : 'hidden'}" id="compose-kind-personal">
-        <button class="compose-tab ${kind === 'note' ? 'active' : ''}" type="button" data-action="set-compose-kind" data-kind="note">
-          ${icon('edit')}<span><strong>小纸条</strong><small>一句话、一个秘密</small></span>
-        </button>
-        <button class="compose-tab ${kind === 'gift' ? 'active' : ''}" type="button" data-action="set-compose-kind" data-kind="gift">
-          ${icon('gift')}<span><strong>礼物计划</strong><small>先偷偷记下来</small></span>
-        </button>
-      </div>
-      <div class="field ${wish ? '' : 'hidden'}" id="wish-fields" style="margin-bottom:13px">
-        <span class="field-label">想吃什么 <span class="field-hint">选一个食物 emoji</span></span>
-        ${emojiPicker(WISH_EMOJIS, foodEmoji, 'foodEmoji')}
-      </div>
+      ${space === 'shared' ? authorNote() : ''}
       <div class="field">
         <label for="moment-text" id="moment-text-label">${copy.label} <span class="char-count" id="moment-text-count">${moment ? Array.from(moment.text).length : 0}/800</span></label>
         <textarea class="textarea" id="moment-text" name="text" maxlength="800" placeholder="${esc(copy.placeholder)}">${editing ? esc(moment.text) : ''}</textarea>
       </div>
+      <p class="compose-hint" id="compose-hint">${icon(copy.icon)}<span>${copy.hint}</span></p>
       <div class="form-grid" style="margin-top:14px">
-        <div class="field span-2 ${space === 'shared' ? '' : 'hidden'}" id="compose-author-shared">
-          <span class="field-label">谁记录的</span>
-          ${authorSegmented(author)}
-        </div>
-        <div class="field span-2 ${space === 'personal' ? '' : 'hidden'}" id="compose-author-personal">
-          <div class="identity-card">
-            <span class="avatar ${sync.identity || 'me'}">${esc(initialOf(sync.identity ? nameOf(sync.identity) : state.names.me))}</span>
-            <div class="identity-card-copy"><strong>只放进我的小抽屉</strong><small>${esc(sync.identity ? nameOf(sync.identity) : '先选择身份')} · 不会出现在共享空间</small></div>
-          </div>
-        </div>
         <div class="field span-2">
           <span class="field-label">当时的心情</span>
           ${moodPicker(mood)}
@@ -3077,9 +3676,10 @@
           <input class="input" id="moment-date" name="date" type="datetime-local" value="${esc(date)}">
         </div>
         <div class="field span-2">
-          <span class="field-label">照片 <span class="field-hint">比文字更会记得</span></span>
+          <span class="field-label">照片 <span class="field-hint">可以直接拍一张</span></span>
           <input class="photo-input" id="moment-photo" type="file" accept="image/*">
-          <input type="hidden" name="photo" id="moment-photo-data" value="${photo}">
+          <input class="photo-input" id="moment-camera" type="file" accept="image/*" capture="environment">
+          <input type="hidden" name="photo" id="moment-photo-data" value="${esc(photoJson(photo))}">
           <div class="photo-zone ${photo ? 'has-photo' : ''}" id="photo-zone">${photoZoneInner(photo)}</div>
         </div>
       </div>
@@ -3087,7 +3687,7 @@
         ${editing ? `<button class="btn btn-ghost" type="button" data-action="delete-moment" data-space="${space}" data-id="${esc(moment.id)}">${icon('trash')} 删除</button>` : ''}
         <span class="spacer"></span>
         <button class="btn btn-ghost" type="button" data-action="close-modal">取消</button>
-        <button class="btn btn-primary" type="submit">${editing ? '保存修改' : (kind === 'wish' ? '记下想吃' : (space === 'personal' ? '放进小抽屉' : '记下来'))}</button>
+        <button class="btn btn-primary" type="submit">${editing ? '保存修改' : (space === 'personal' ? (kind === 'gift' ? '放进小岛' : '放进小岛') : '记下来')}</button>
       </div>
       <p class="required-hint">文字和照片至少留一样 · ⌘/Ctrl + Enter 快速保存</p>
     </form>`;
@@ -3123,9 +3723,26 @@
     <input type="hidden" class="emoji-value" name="${name}" value="${esc(current)}">`;
   }
 
-  function recipeForm(recipe = null) {
-    const editing = Boolean(recipe);
-    const data = recipe || {
+  function wantedByPicker(current = ['me']) {
+    const set = new Set(current);
+    return `<div class="who-picker">
+      ${['me', 'partner'].map((role) => `<button type="button" class="who-option ${set.has(role) ? 'active' : ''}" data-action="pick-who" data-who="${role}">
+        ${avatarFor(role, 'tiny')} <span>${esc(nameOf(role))}</span>
+      </button>`).join('')}
+    </div>
+    <input type="hidden" class="who-value" name="wantedBy" value="${esc([...set].join(','))}">`;
+  }
+
+  function photoField(photo, prefix = 'moment') {
+    return `<input class="photo-input" id="${prefix}-photo" type="file" accept="image/*">
+      <input class="photo-input" id="${prefix}-camera" type="file" accept="image/*" capture="environment">
+      <input type="hidden" name="photo" id="${prefix}-photo-data" value="${esc(photoJson(photo))}">
+      <div class="photo-zone ${photo ? 'has-photo' : ''}" id="${prefix}-photo-zone">${photoZoneInner(photo)}</div>`;
+  }
+
+  function dishForm(dish = null) {
+    const editing = Boolean(dish);
+    const data = dish || {
       emoji: '🍳',
       desc: '',
       time: 30,
@@ -3134,36 +3751,41 @@
       ingredients: [],
       steps: [],
       favorite: false,
+      wantedBy: sync.identity ? [sync.identity] : ['me'],
     };
     const ingredients = data.ingredients.length ? data.ingredients : [{ amount: '', name: '' }];
     const steps = data.steps.length ? data.steps : [''];
-    return `<form id="recipe-form" data-id="${editing ? esc(recipe.id) : ''}">
+    return `<form id="dish-form" data-id="${editing ? esc(dish.id) : ''}">
       <div class="form-grid">
         <div class="field span-2">
-          <label for="recipe-name">菜名 <em>*</em></label>
-          <input class="input" id="recipe-name" name="name" maxlength="40" value="${esc(data.name || '')}" placeholder="比如：番茄牛腩" required>
+          <label for="dish-name">想吃什么 <em>*</em></label>
+          <input class="input" id="dish-name" name="name" maxlength="40" value="${esc(data.name || '')}" placeholder="比如：番茄牛腩" required>
         </div>
         <div class="field">
           <span class="field-label">给它一个 emoji</span>
           ${emojiPicker(RECIPE_EMOJIS, data.emoji || '🍳', 'emoji')}
         </div>
         <div class="field">
-          <label for="recipe-time">大概要多久 <span class="field-hint">分钟</span></label>
-          <input class="input" id="recipe-time" name="time" type="number" min="1" max="999" value="${esc(data.time || 30)}">
+          <label for="dish-time">大概要多久 <span class="field-hint">分钟</span></label>
+          <input class="input" id="dish-time" name="time" type="number" min="1" max="999" value="${esc(data.time || 30)}">
         </div>
         <div class="field">
-          <label for="recipe-difficulty">难度</label>
-          <select class="select" id="recipe-difficulty" name="difficulty">
+          <label for="dish-difficulty">难度</label>
+          <select class="select" id="dish-difficulty" name="difficulty">
             ${DIFFICULTIES.map((level) => `<option value="${level}" ${data.difficulty === level ? 'selected' : ''}>${level}</option>`).join('')}
           </select>
         </div>
         <div class="field">
-          <label for="recipe-tags-input">标签 <span class="field-hint">用逗号隔开</span></label>
-          <input class="input" id="recipe-tags-input" name="tags" maxlength="60" value="${esc((data.tags || []).join('，'))}" placeholder="快手，下饭，甜点">
+          <label for="dish-tags-input">标签 <span class="field-hint">用逗号隔开</span></label>
+          <input class="input" id="dish-tags-input" name="tags" maxlength="60" value="${esc((data.tags || []).join('，'))}" placeholder="快手，下饭，甜点">
         </div>
         <div class="field span-2">
-          <label for="recipe-desc">一句话介绍</label>
-          <textarea class="textarea" id="recipe-desc" name="desc" maxlength="140" rows="2" placeholder="为什么想做这道菜？">${esc(data.desc || '')}</textarea>
+          <span class="field-label">谁想吃 <span class="field-hint">可以都选</span></span>
+          ${wantedByPicker(data.wantedBy)}
+        </div>
+        <div class="field span-2">
+          <label for="dish-desc">一句话介绍</label>
+          <textarea class="textarea" id="dish-desc" name="desc" maxlength="140" rows="2" placeholder="为什么想吃这道菜？">${esc(data.desc || '')}</textarea>
         </div>
       </div>
 
@@ -3191,7 +3813,90 @@
       <div class="form-actions">
         <span class="spacer"></span>
         <button class="btn btn-ghost" type="button" data-action="close-modal">取消</button>
-        <button class="btn btn-primary" type="submit">${editing ? '保存菜谱' : '收进菜谱'}</button>
+        <button class="btn btn-primary" type="submit">${editing ? '保存' : '收进想吃清单'}</button>
+      </div>
+    </form>`;
+  }
+
+  function placeForm(place = null) {
+    const editing = Boolean(place);
+    const data = place || {
+      scene: 'home',
+      city: '',
+      address: '',
+      mapUrl: '',
+      dishes: [],
+      tags: [],
+      note: '',
+      photos: [],
+      wantedBy: sync.identity ? [sync.identity] : ['me'],
+      status: 'wanted',
+      favorite: false,
+    };
+    return `<form id="place-form" data-id="${editing ? esc(place.id) : ''}">
+      <div class="form-grid">
+        <div class="field span-2">
+          <label for="place-name">店名 <em>*</em></label>
+          <input class="input" id="place-name" name="name" maxlength="40" value="${esc(data.name || '')}" placeholder="比如：楼下那家小面馆" required>
+        </div>
+        <div class="field span-2">
+          <span class="field-label">归到哪一栏 <span class="field-hint">决定什么时候方便去</span></span>
+          <div class="scene-picker">
+            ${Object.entries(PLACE_SCENES).map(([key, scene]) => `<button type="button" class="scene-option ${data.scene === key ? 'active' : ''}" data-action="pick-scene" data-scene="${key}">
+              <span class="scene-emoji">${scene.emoji}</span>
+              <span class="scene-copy"><strong>${scene.label}</strong><small>${scene.hint}</small></span>
+            </button>`).join('')}
+          </div>
+          <input type="hidden" class="scene-value" name="scene" value="${esc(data.scene)}">
+        </div>
+        <div class="field">
+          <label for="place-city">城市 <span class="field-hint">出去玩时填</span></label>
+          <input class="input" id="place-city" name="city" maxlength="20" value="${esc(data.city || '')}" placeholder="比如：厦门">
+        </div>
+        <div class="field">
+          <span class="field-label">状态</span>
+          <select class="select" id="place-status" name="status">
+            <option value="wanted" ${data.status !== 'visited' ? 'selected' : ''}>还没去过</option>
+            <option value="visited" ${data.status === 'visited' ? 'selected' : ''}>已经去过</option>
+          </select>
+        </div>
+        <div class="field span-2">
+          <label for="place-address">位置 <span class="field-hint">地址或“怎么走”</span></label>
+          <input class="input" id="place-address" name="address" maxlength="120" value="${esc(data.address || '')}" placeholder="街道、门牌，或者“地铁口出来右转”">
+        </div>
+        <div class="field span-2">
+          <label for="place-map">地图链接 <span class="field-hint">可选，不填就按地址搜</span></label>
+          <input class="input" id="place-map" name="mapUrl" maxlength="400" value="${esc(data.mapUrl || '')}" placeholder="可以粘贴高德/百度地图分享出来的链接">
+        </div>
+        <div class="field span-2">
+          <label for="place-dishes">想吃的菜 <span class="field-hint">用逗号隔开</span></label>
+          <input class="input" id="place-dishes" name="dishes" maxlength="200" value="${esc((data.dishes || []).join('，'))}" placeholder="招牌面，葱油饼，冰豆浆">
+        </div>
+        <div class="field span-2">
+          <label for="place-tags">标签 <span class="field-hint">可选，用逗号隔开</span></label>
+          <input class="input" id="place-tags" name="tags" maxlength="80" value="${esc((data.tags || []).join('，'))}" placeholder="面食，夜宵，适合下雨天">
+        </div>
+        <div class="field span-2">
+          <span class="field-label">谁想吃 <span class="field-hint">可以都选</span></span>
+          ${wantedByPicker(data.wantedBy)}
+        </div>
+        <div class="field span-2">
+          <label for="place-note">备注</label>
+          <textarea class="textarea" id="place-note" name="note" maxlength="200" rows="2" placeholder="为什么想去？有什么要记住的？">${esc(data.note || '')}</textarea>
+        </div>
+        <div class="field span-2">
+          <span class="field-label">门头/菜品照片 <span class="field-hint">可选</span></span>
+          ${photoField(data.photos && data.photos[0] ? data.photos[0] : '', 'place')}
+        </div>
+      </div>
+      <label class="check-row">
+        <input type="checkbox" name="favorite" ${data.favorite ? 'checked' : ''}>
+        <span>放进我们的收藏</span>
+      </label>
+      <div class="form-actions">
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" type="button" data-action="close-modal">取消</button>
+        <button class="btn btn-primary" type="submit">${editing ? '保存' : '收进想吃清单'}</button>
       </div>
     </form>`;
   }
@@ -3247,7 +3952,7 @@
     const space = options.space || (moment && moment.space) || 'shared';
     const kind = options.kind || (moment && moment.kind) || (space === 'personal' ? 'note' : 'moment');
     if (space === 'personal' && !sync.identity) {
-      toast('先选一下你是哪一位，再打开小抽屉');
+      toast('先选一下你是哪一位，再打开小岛');
       openIdentityModal();
       return;
     }
@@ -3264,13 +3969,23 @@
     });
   }
 
-  function openRecipeModal(recipe = null) {
-    const editing = Boolean(recipe);
+  function openDishModal(dish = null) {
+    const editing = Boolean(dish);
     openModal({
-      eyebrow: editing ? 'EDIT RECIPE' : 'NEW RECIPE',
-      title: editing ? '编辑菜谱' : '收一道新菜',
+      eyebrow: editing ? 'EDIT CRAVING' : 'NEW CRAVING',
+      title: editing ? '编辑这道想吃的菜' : '记下一道想吃的',
       subtitle: editing ? '把步骤改得更像你们家的做法。' : '下次不知道吃什么的时候，就来这里翻。',
-      body: recipeForm(recipe),
+      body: dishForm(dish),
+    });
+  }
+
+  function openPlaceModal(place = null) {
+    const editing = Boolean(place);
+    openModal({
+      eyebrow: editing ? 'EDIT PLACE' : 'NEW PLACE',
+      title: editing ? '编辑这家店' : '收藏一家想吃的店',
+      subtitle: editing ? '地址、想吃的菜，都可以慢慢补。' : '路边看到的、旅行里想再去的，都可以先收进来。',
+      body: placeForm(place),
     });
   }
 
@@ -3284,50 +3999,92 @@
     });
   }
 
-  function openRecipeDetail(id) {
-    const recipe = state.recipes.find((item) => item.id === id);
-    if (!recipe) return;
-    const palette = recipePalette(recipe);
-    const cookedToday = Boolean(recipe.cookedAt)
-      && localDateStr(new Date(recipe.cookedAt)) === localDateStr();
-    const ingredients = recipe.ingredients.length
-      ? `<ul class="ingredient-list">${recipe.ingredients.map((item, index) => `<li>
-          <input type="checkbox" id="ing-${index}-${esc(recipe.id)}">
-          <label for="ing-${index}-${esc(recipe.id)}"><span>${esc(item.name)}</span><span>${esc(item.amount || '')}</span></label>
+  function openDishDetail(id) {
+    const dish = state.wishes.dishes.find((item) => item.id === id);
+    if (!dish) return;
+    const palette = dishPalette(dish);
+    const cookedToday = Boolean(dish.cookedAt)
+      && localDateStr(new Date(dish.cookedAt)) === localDateStr();
+    const ingredients = dish.ingredients.length
+      ? `<ul class="ingredient-list">${dish.ingredients.map((item, index) => `<li>
+          <input type="checkbox" id="ing-${index}-${esc(dish.id)}">
+          <label for="ing-${index}-${esc(dish.id)}"><span>${esc(item.name)}</span><span>${esc(item.amount || '')}</span></label>
         </li>`).join('')}</ul>`
       : '<p class="settings-note">这道菜还没写食材。</p>';
-    const steps = recipe.steps.length
-      ? `<ol class="step-list">${recipe.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol>`
+    const steps = dish.steps.length
+      ? `<ol class="step-list">${dish.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol>`
       : '<p class="settings-note">还没有写做法，下次一起补上吧。</p>';
     const body = `<div class="recipe-detail-cover ${palette}">
-        <span class="emoji">${esc(recipe.emoji || '🍳')}</span>
+        <span class="emoji">${esc(dish.emoji || '🍳')}</span>
         <div>
-          <h3>${esc(recipe.name)}</h3>
-          <p>${esc(recipe.desc || '一道想和 TA 一起做的菜。')}</p>
+          <h3>${esc(dish.name)}</h3>
+          <p>${esc(dish.desc || '一道想和 TA 一起做的菜。')}</p>
         </div>
       </div>
       <div class="detail-meta">
-        <span>${icon('clock')} ${recipe.time} 分钟</span>
-        <span>${esc(recipe.difficulty)}</span>
-        <span>${recipe.ingredients.length} 样食材</span>
-        <span>${recipe.steps.length} 个步骤</span>
-        ${recipe.favorite ? `<span>${icon('heart', 'fill')} 已收藏</span>` : ''}
+        <span>${icon('clock')} ${dish.time} 分钟</span>
+        <span>${esc(dish.difficulty)}</span>
+        <span>${dish.ingredients.length} 样食材</span>
+        <span>${dish.steps.length} 个步骤</span>
+        ${dish.favorite ? `<span>${icon('heart', 'fill')} 已收藏</span>` : ''}
+        <span>${(dish.wantedBy || []).map((role) => esc(nameOf(role))).join(' / ')} 想吃</span>
       </div>
       <div class="detail-section"><h4>食材</h4>${ingredients}</div>
       <div class="detail-section"><h4>做法</h4>${steps}</div>
       <div class="detail-actions">
-        <button class="btn ${recipe.favorite ? 'btn-soft' : 'btn-ghost'}" type="button" data-action="toggle-favorite" data-fav-id="${esc(recipe.id)}">
-          ${icon('heart', recipe.favorite ? 'fill' : '')}<span class="fav-label">${recipe.favorite ? '已收藏' : '收藏'}</span>
+        <button class="btn ${dish.favorite ? 'btn-soft' : 'btn-ghost'}" type="button" data-action="toggle-favorite" data-fav-id="${esc(dish.id)}">
+          ${icon('heart', dish.favorite ? 'fill' : '')}<span class="fav-label">${dish.favorite ? '已收藏' : '收藏'}</span>
         </button>
-        <button class="btn ${cookedToday ? 'is-done' : 'btn-ghost'}" type="button" data-action="mark-cooked" data-cooked-id="${esc(recipe.id)}">${icon('check')} 今天做过啦</button>
+        <button class="btn ${cookedToday ? 'is-done' : 'btn-ghost'}" type="button" data-action="mark-cooked" data-cooked-id="${esc(dish.id)}">${icon('check')} 今天做过啦</button>
         <span class="spacer"></span>
-        <button class="btn btn-ghost" type="button" data-action="edit-recipe" data-id="${esc(recipe.id)}">${icon('edit')} 编辑</button>
-        <button class="btn btn-ghost" type="button" data-action="delete-recipe" data-id="${esc(recipe.id)}" style="color:var(--danger)">${icon('trash')} 删除</button>
+        <button class="btn btn-ghost" type="button" data-action="edit-dish" data-id="${esc(dish.id)}">${icon('edit')} 编辑</button>
+        <button class="btn btn-ghost" type="button" data-action="delete-dish" data-id="${esc(dish.id)}" style="color:var(--danger)">${icon('trash')} 删除</button>
       </div>`;
     openModal({
-      eyebrow: 'RECIPE',
-      title: '菜谱详情',
+      eyebrow: 'CRAVING',
+      title: '想吃的菜',
       subtitle: '一起做，一起吃，一起把日子过香。',
+      body,
+      wide: true,
+    });
+  }
+
+  function openPlaceDetail(id) {
+    const place = state.wishes.places.find((item) => item.id === id);
+    if (!place) return;
+    const scene = placeScene(place.scene);
+    const covered = place.status === 'visited';
+    const photo = place.photos && place.photos[0] ? place.photos[0] : '';
+    const body = `<div class="place-detail-hero scene-${esc(place.scene)}">
+        ${photo ? photoImg(photo, 'place-detail-photo', place.name) : `<span class="place-detail-emoji">${scene.emoji}</span>`}
+        <span class="place-scene">${scene.emoji} ${scene.label}</span>
+      </div>
+      <div class="detail-meta">
+        <span>${icon('home')} ${esc(place.city || '没写城市')}</span>
+        <span>${esc(place.address || '还没写位置')}</span>
+        <span>${covered ? '已去过' : '想去'}</span>
+      </div>
+      ${place.dishes.length ? `<div class="detail-section"><h4>想吃的菜</h4><div class="chips-row">${place.dishes.map((dish) => `<span class="tag">${esc(dish)}</span>`).join('')}</div></div>` : ''}
+      ${place.tags.length ? `<div class="detail-section"><h4>标签</h4><div class="chips-row">${place.tags.map((tag) => `<span class="tag">${esc(tag)}</span>`).join('')}</div></div>` : ''}
+      ${place.note ? `<div class="detail-section"><h4>备注</h4><p class="settings-note">${esc(place.note)}</p></div>` : ''}
+      <div class="place-who-line">
+        <span>谁想吃</span>
+        <div>${(place.wantedBy || []).map((role) => `${avatarFor(role, 'tiny')} ${esc(nameOf(role))}`).join('　')}</div>
+      </div>
+      <div class="detail-actions">
+        <button class="btn btn-primary" type="button" data-action="open-map" data-id="${esc(place.id)}">${icon('cloud')} 导航去这里</button>
+        <button class="btn ${covered ? 'is-done' : 'btn-ghost'}" type="button" data-action="mark-visited" data-id="${esc(place.id)}">${icon('check')} ${covered ? '再去一次' : '我去过啦'}</button>
+        <button class="btn ${place.favorite ? 'btn-soft' : 'btn-ghost'}" type="button" data-action="toggle-place-favorite" data-fav-id="${esc(place.id)}">
+          ${icon('heart', place.favorite ? 'fill' : '')}<span class="fav-label">${place.favorite ? '已收藏' : '收藏'}</span>
+        </button>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" type="button" data-action="edit-place" data-id="${esc(place.id)}">${icon('edit')} 编辑</button>
+        <button class="btn btn-ghost" type="button" data-action="delete-place" data-id="${esc(place.id)}" style="color:var(--danger)">${icon('trash')} 删除</button>
+      </div>`;
+    openModal({
+      eyebrow: 'PLACE',
+      title: '想吃的店',
+      subtitle: '记下来，总有一天会去。',
       body,
       wide: true,
     });
@@ -3342,30 +4099,385 @@
       const reader = new FileReader();
       reader.onerror = () => reject(new Error('read failed'));
       reader.onload = () => {
-        const image = new Image();
-        image.onerror = () => reject(new Error('image failed'));
-        image.onload = () => {
-          const maxSide = 1000;
-          const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
-          const canvas = document.createElement('canvas');
-          canvas.width = Math.max(1, Math.round(image.width * scale));
-          canvas.height = Math.max(1, Math.round(image.height * scale));
-          const context = canvas.getContext('2d');
-          context.fillStyle = '#fffdf8';
-          context.fillRect(0, 0, canvas.width, canvas.height);
-          context.drawImage(image, 0, 0, canvas.width, canvas.height);
-          let quality = 0.76;
-          let data = canvas.toDataURL('image/jpeg', quality);
-          while (data.length > 600000 && quality > 0.4) {
-            quality -= 0.08;
-            data = canvas.toDataURL('image/jpeg', quality);
-          }
-          resolve(data);
-        };
-        image.src = reader.result;
+        compressImageDataUrl(String(reader.result || '')).then(resolve).catch(reject);
       };
       reader.readAsDataURL(file);
     });
+  }
+
+  function compressImageDataUrl(source) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onerror = () => reject(new Error('image failed'));
+      image.onload = () => {
+        const maxSide = 1600;
+        const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#fffdf8';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        let quality = 0.82;
+        let data = canvas.toDataURL('image/jpeg', quality);
+        while (data.length > 420000 && quality > 0.4) {
+          quality -= 0.08;
+          data = canvas.toDataURL('image/jpeg', quality);
+        }
+        resolve({ dataUrl: data, w: canvas.width, h: canvas.height });
+      };
+      image.src = source;
+    });
+  }
+
+  /* ------------------------------------------------------------------------
+     Photo store: bytes live outside the JSON (Nutstore photos/ folder)
+     ------------------------------------------------------------------------ */
+
+  const PHOTO_DB_NAME = 'xiaoman.photos.v1';
+  const PENDING_PHOTOS_KEY = 'xiaoman.photoQueue.v1';
+  let photoDbPromise = null;
+  const photoObjectUrls = new Map();
+  let photoObserver = null;
+
+  function mediaPlugin() {
+    try {
+      return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.XiaomanMedia;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function cameraPlugin() {
+    try {
+      return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.XiaomanCamera;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function openPhotoDb() {
+    if (!('indexedDB' in window)) return Promise.reject(new Error('no idb'));
+    if (!photoDbPromise) {
+      photoDbPromise = new Promise((resolve, reject) => {
+        const request = window.indexedDB.open(PHOTO_DB_NAME, 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos');
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('idb failed'));
+      });
+    }
+    return photoDbPromise;
+  }
+
+  function idbGet(key) {
+    return openPhotoDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction('photos', 'readonly');
+      const request = tx.objectStore('photos').get(key);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    }));
+  }
+
+  function idbPut(key, value) {
+    return openPhotoDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction('photos', 'readwrite');
+      tx.objectStore('photos').put(value, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    }));
+  }
+
+  function idbDelete(key) {
+    return openPhotoDb().then((db) => new Promise((resolve) => {
+      const tx = db.transaction('photos', 'readwrite');
+      tx.objectStore('photos').delete(key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    })).catch(() => false);
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    const parts = String(dataUrl).split(',');
+    const header = parts[0] || '';
+    const mime = (header.match(/data:([^;]+)/) || [])[1] || 'image/jpeg';
+    const binary = window.atob(parts[1] || '');
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return new Blob([bytes], { type: mime });
+  }
+
+  async function savePhotoFromDataUrl(dataUrl, width = 0, height = 0, forcedId = '') {
+    const plugin = mediaPlugin();
+    if (isNativeApp() && plugin) {
+      const result = await plugin.savePhoto({ dataUrl, id: forcedId || undefined });
+      return {
+        id: String(result.id || forcedId || uid()),
+        w: Number(result.width) || width || 0,
+        h: Number(result.height) || height || 0,
+      };
+    }
+    const id = forcedId || uid();
+    await idbPut(id, dataUrlToBlob(dataUrl));
+    return { id, w: width || 0, h: height || 0 };
+  }
+
+  async function photoSource(photo) {
+    if (!photo || typeof photo !== 'object' || !photo.id) return '';
+    if (photoObjectUrls.has(photo.id)) return photoObjectUrls.get(photo.id);
+    const plugin = mediaPlugin();
+    if (isNativeApp() && plugin) {
+      try {
+        const result = await plugin.photoPath({ id: photo.id });
+        if (result && result.path && result.exists !== false) {
+          const url = window.Capacitor.convertFileSrc(result.path);
+          photoObjectUrls.set(photo.id, url);
+          return url;
+        }
+      } catch (error) {
+        return '';
+      }
+      return '';
+    }
+    try {
+      const blob = await idbGet(photo.id);
+      if (!blob) return '';
+      const url = URL.createObjectURL(blob);
+      photoObjectUrls.set(photo.id, url);
+      return url;
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function hydratePhotos(root = document) {
+    $$('img[data-photo-id]', root).forEach(async (img) => {
+      if (img.dataset.hydrated === '1') return;
+      img.dataset.hydrated = '1';
+      const id = img.dataset.photoId;
+      const src = await photoSource({ id });
+      if (src) {
+        img.onerror = async () => {
+          img.onerror = null;
+          const dataUrl = await readPhotoDataUrl(id);
+          if (dataUrl) img.src = dataUrl;
+        };
+        img.src = src;
+        img.classList.remove('photo-pending');
+      } else {
+        img.classList.add('photo-missing');
+        watchPhotoDownload(img);
+      }
+    });
+  }
+
+  function watchPhotoDownload(img) {
+    if (!('IntersectionObserver' in window)) {
+      loadRemotePhoto(img.dataset.photoId);
+      return;
+    }
+    if (!photoObserver) {
+      photoObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          photoObserver.unobserve(entry.target);
+          loadRemotePhoto(entry.target.dataset.photoId);
+        });
+      }, { rootMargin: '240px' });
+    }
+    photoObserver.observe(img);
+  }
+
+  async function loadRemotePhoto(id) {
+    if (!id || !isSyncConfigured()) return;
+    const plugin = mediaPlugin();
+    if (!plugin) return;
+    const key = `photos/${id}.jpg`;
+    try {
+      await plugin.downloadPhoto({
+        id,
+        key,
+        url: `${remoteFolderUrl()}${key}`,
+        auth: basicAuth(sync.username, sync.password),
+      });
+      const src = await photoSource({ id });
+      if (!src) return;
+      const bust = `${src}${src.includes('?') ? '&' : '?'}v=${Date.now()}`;
+      $$(`img[data-photo-id="${id}"]`).forEach((img) => {
+        img.src = bust;
+        img.classList.remove('photo-missing', 'photo-pending');
+      });
+    } catch (error) {
+      // Offline or not uploaded yet; keep the placeholder.
+    }
+  }
+
+  function photoQueue() {
+    try {
+      const raw = window.localStorage.getItem(PENDING_PHOTOS_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function savePhotoQueue(list) {
+    try {
+      window.localStorage.setItem(PENDING_PHOTOS_KEY, JSON.stringify([...new Set(list)].slice(0, 500)));
+    } catch (error) {
+      // best effort
+    }
+  }
+
+  function queuePhotoUpload(id) {
+    if (!id) return;
+    const list = photoQueue();
+    if (!list.includes(id)) {
+      list.push(id);
+      savePhotoQueue(list);
+    }
+    if (isSyncConfigured()) {
+      window.setTimeout(() => { uploadQueuedPhotos(); }, 700);
+    }
+  }
+
+  let photosDirReady = false;
+
+  async function ensurePhotosDir() {
+    if (photosDirReady || !isSyncConfigured()) return photosDirReady;
+    const url = `${remoteFolderUrl()}photos/`;
+    const plugin = mediaPlugin();
+    if (isNativeApp() && plugin) {
+      try {
+        const result = await plugin.ensureFolder({
+          url,
+          auth: basicAuth(sync.username, sync.password),
+        });
+        photosDirReady = [200, 201, 204, 301, 302, 405].includes(Number(result && result.status));
+      } catch (error) {
+        photosDirReady = false;
+      }
+      return photosDirReady;
+    }
+    try {
+      const result = await davRequest('MKCOL', url, undefined, {}, sync);
+      photosDirReady = [200, 201, 204, 301, 302, 405].includes(result.status);
+    } catch (error) {
+      photosDirReady = false;
+    }
+    return photosDirReady;
+  }
+
+  let uploadingPhotos = false;
+
+  async function uploadQueuedPhotos() {
+    const plugin = mediaPlugin();
+    if (!isNativeApp() || !plugin || !isSyncConfigured()) return;
+    if (uploadingPhotos) return;
+    const list = photoQueue();
+    if (!list.length) return;
+    uploadingPhotos = true;
+    try {
+      await ensurePhotosDir();
+      const remaining = [];
+      for (const id of list) {
+        try {
+          await plugin.uploadPhoto({
+            id,
+            key: `photos/${id}.jpg`,
+            url: `${remoteFolderUrl()}photos/${id}.jpg`,
+            auth: basicAuth(sync.username, sync.password),
+          });
+        } catch (error) {
+          remaining.push(id);
+        }
+      }
+      savePhotoQueue(remaining);
+    } finally {
+      uploadingPhotos = false;
+    }
+  }
+
+  async function removePhotoBytes(id) {
+    if (!id) return;
+    photoObjectUrls.delete(id);
+    const plugin = mediaPlugin();
+    if (isNativeApp() && plugin) {
+      try { await plugin.deletePhoto({ id }); } catch (error) { /* noop */ }
+      return;
+    }
+    await idbDelete(id);
+  }
+
+  async function readPhotoDataUrl(id) {
+    const plugin = mediaPlugin();
+    if (isNativeApp() && plugin) {
+      try {
+        const result = await plugin.readPhoto({ id });
+        return result && result.dataUrl ? result.dataUrl : '';
+      } catch (error) {
+        return '';
+      }
+    }
+    try {
+      const blob = await idbGet(id);
+      if (!blob) return '';
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      return '';
+    }
+  }
+
+  async function applyPhotoRef(ref, form) {
+    const target = form || $('#moment-form') || $('#place-form');
+    if (!target) return;
+    const hidden = target.querySelector('input[name="photo"]');
+    if (hidden) hidden.value = photoJson(ref);
+    const zone = target.querySelector('.photo-zone');
+    if (zone) {
+      zone.innerHTML = photoZoneInner(ref);
+      zone.classList.add('has-photo');
+      hydratePhotos(zone);
+    }
+  }
+
+  async function applyPhotoDataUrl(dataUrl, form) {
+    const compressed = await compressImageDataUrl(dataUrl);
+    const ref = await savePhotoFromDataUrl(compressed.dataUrl, compressed.w, compressed.h);
+    queuePhotoUpload(ref.id);
+    await applyPhotoRef(ref, form);
+    toast('照片加好啦');
+  }
+
+  async function startCamera(button) {
+    const form = button ? button.closest('form') : null;
+    const plugin = cameraPlugin();
+    if (isNativeApp() && plugin) {
+      try {
+        const result = await plugin.takePicture({ quality: 92 });
+        if (result && result.dataUrl) {
+          await applyPhotoDataUrl(result.dataUrl, form);
+        }
+      } catch (error) {
+        const message = String((error && error.message) || '');
+        if (/cancel/i.test(message)) return;
+        toast(message && !/cancel/i.test(message) ? message : '没能打开相机，试试从相册选');
+      }
+      return;
+    }
+    const scope = form || document;
+    const input = scope.querySelector('.photo-input[capture]');
+    if (input) input.click();
+    else toast('这台设备不支持直接调用相机');
   }
 
   async function handlePhoto(input) {
@@ -3376,20 +4488,16 @@
       input.value = '';
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
-      toast('这张照片太大了，换一张小于 15MB 的吧');
+    if (file.size > 20 * 1024 * 1024) {
+      toast('这张照片太大了，换一张小于 20MB 的吧');
       input.value = '';
       return;
     }
     try {
-      const data = await compressImage(file);
-      const hidden = $('#moment-photo-data');
-      const zone = $('#photo-zone');
-      if (hidden) hidden.value = data;
-      if (zone) {
-        zone.innerHTML = photoZoneInner(data);
-        zone.classList.add('has-photo');
-      }
+      const compressed = await compressImage(file);
+      const ref = await savePhotoFromDataUrl(compressed.dataUrl, compressed.w, compressed.h);
+      queuePhotoUpload(ref.id);
+      await applyPhotoRef(ref, input.closest('form'));
       toast('照片加好啦');
     } catch (error) {
       toast('照片读取失败，换一张试试');
@@ -3398,12 +4506,39 @@
   }
 
   function updatePhotoZone(photo) {
-    const hidden = $('#moment-photo-data');
-    const zone = $('#photo-zone');
-    if (hidden) hidden.value = photo;
+    const form = $('#moment-form') || $('#place-form');
+    if (!form) return;
+    const hidden = form.querySelector('input[name="photo"]');
+    if (hidden) hidden.value = photoJson(photo);
+    const zone = form.querySelector('.photo-zone');
     if (zone) {
       zone.innerHTML = photoZoneInner(photo);
       zone.classList.toggle('has-photo', Boolean(photo));
+      hydratePhotos(zone);
+    }
+  }
+
+  async function migrateInlinePhotos() {
+    const collections = [state.moments, state.personal.me.moments, state.personal.partner.moments];
+    let changed = false;
+    for (const list of collections) {
+      for (const moment of list) {
+        if (typeof moment.photo !== 'string' || !/^data:image\//i.test(moment.photo)) continue;
+        try {
+          const compressed = await compressImageDataUrl(moment.photo);
+          const ref = await savePhotoFromDataUrl(compressed.dataUrl, compressed.w, compressed.h);
+          moment.photo = ref;
+          queuePhotoUpload(ref.id);
+          changed = true;
+        } catch (error) {
+          // Leave the inline photo untouched when it cannot be decoded.
+        }
+      }
+    }
+    if (changed) {
+      saveState({ skipSync: true });
+      render();
+      toast('旧照片已经搬到本地相册，之后会同步到坚果云');
     }
   }
 
@@ -3411,21 +4546,38 @@
      Saving
      ------------------------------------------------------------------------ */
 
+  function parsePhotoField(raw) {
+    const value = String(raw || '');
+    if (!value) return '';
+    if (/^data:image\//i.test(value)) return value;
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && parsed.id) {
+        return { id: String(parsed.id), w: Math.max(0, Number(parsed.w) || 0), h: Math.max(0, Number(parsed.h) || 0) };
+      }
+    } catch (error) {
+      // ignore malformed photo payload
+    }
+    return '';
+  }
+
   function saveMoment(form) {
     const formData = new FormData(form);
     const space = formData.get('space') === 'personal' ? 'personal' : 'shared';
     const rawKind = String(formData.get('kind') || '');
-    const kind = space === 'personal'
-      ? (rawKind === 'gift' ? 'gift' : 'note')
-      : (rawKind === 'wish' ? 'wish' : 'moment');
+    const editingId = form.dataset.id;
+    const editingMoment = editingId
+      ? (space === 'personal'
+        ? (sync.identity ? state.personal[sync.identity].moments.find((item) => item.id === editingId) : null)
+        : state.moments.find((item) => item.id === editingId))
+      : null;
+    let kind = 'moment';
+    if (space === 'personal') kind = rawKind === 'gift' ? 'gift' : 'note';
+    else if (editingMoment && editingMoment.kind === 'wish') kind = 'wish';
     const text = String(formData.get('text') || '').trim();
-    const photo = safePhoto(formData.get('photo'));
+    const photo = parsePhotoField(formData.get('photo'));
     if (!text && !photo) {
       toast('写点什么，或者放一张照片吧');
-      return;
-    }
-    if (kind === 'wish' && !text) {
-      toast('写一下想吃什么，这样才像一张想吃卡片');
       return;
     }
     if (space === 'personal' && !sync.identity) {
@@ -3433,24 +4585,21 @@
       return;
     }
 
-    const id = form.dataset.id;
     const list = space === 'personal' ? state.personal[sync.identity].moments : state.moments;
-    const existing = id ? list.find((moment) => moment.id === id) : null;
+    const existing = editingMoment || null;
     const dateValue = String(formData.get('date') || '');
     const parsedDate = new Date(dateValue);
     const date = Number.isNaN(parsedDate.getTime()) ? new Date().toISOString() : parsedDate.toISOString();
     const next = {
       id: existing ? existing.id : uid(),
-      author: space === 'personal'
-        ? sync.identity
-        : (formData.get('author') === 'partner' ? 'partner' : 'me'),
+      author: space === 'personal' ? sync.identity : (sync.identity || 'me'),
       kind,
       text,
       mood: MOODS[formData.get('mood')] ? String(formData.get('mood')) : 'happy',
       date,
       photo,
-      foodEmoji: kind === 'wish' ? String(formData.get('foodEmoji') || '🍲').slice(0, 8) : '',
-      wishStatus: kind === 'wish' ? (existing && existing.wishStatus === 'planned' ? 'planned' : 'wanted') : '',
+      foodEmoji: kind === 'wish' ? (existing && existing.foodEmoji) || '🍲' : '',
+      wishStatus: kind === 'wish' ? ((existing && existing.wishStatus) || 'wanted') : '',
       updatedAt: isoNow(),
     };
     if (existing) Object.assign(existing, next);
@@ -3459,12 +4608,18 @@
     if (!saveState()) return;
     closeModal();
     render();
-    if (kind === 'wish') toast('记下啦，等一个“安排”');
-    else if (space === 'personal') toast(existing ? '小纸条改好啦' : '放进小抽屉啦，只有你能看到');
+    if (space === 'personal') toast(existing ? '小纸条改好啦' : '放进小岛啦，只有你能看到');
     else toast(existing ? '改好啦，还是你们的故事' : '记下啦，这一天有你们');
   }
 
-  function saveRecipe(form) {
+  function splitList(value, limit = 8) {
+    return [...new Set(String(value || '')
+      .split(/[,，、]/)
+      .map((item) => item.trim())
+      .filter(Boolean))].slice(0, limit);
+  }
+
+  function saveDish(form) {
     const formData = new FormData(form);
     const name = String(formData.get('name') || '').trim();
     if (!name) {
@@ -3488,12 +4643,10 @@
       toast('至少写一个步骤，下次才不会忘');
       return;
     }
-    const tags = [...new Set(String(formData.get('tags') || '')
-      .split(/[,，、]/)
-      .map((tag) => tag.trim())
-      .filter(Boolean))].slice(0, 8);
+    const tags = splitList(formData.get('tags'), 8);
+    const wantedBy = splitList(formData.get('wantedBy'), 2).filter((role) => role === 'me' || role === 'partner');
     const id = form.dataset.id;
-    const existing = id ? state.recipes.find((recipe) => recipe.id === id) : null;
+    const existing = id ? state.wishes.dishes.find((dish) => dish.id === id) : null;
     const next = {
       id: existing ? existing.id : uid(),
       name,
@@ -3505,16 +4658,64 @@
       ingredients,
       steps,
       favorite: Boolean(formData.get('favorite')),
+      wantedBy: wantedBy.length ? wantedBy : (sync.identity ? [sync.identity] : ['me']),
       createdAt: existing ? existing.createdAt : new Date().toISOString(),
       cookedAt: existing ? existing.cookedAt : '',
       updatedAt: isoNow(),
     };
     if (existing) Object.assign(existing, next);
-    else state.recipes.unshift(next);
+    else state.wishes.dishes.unshift(next);
     if (!saveState()) return;
     closeModal();
     render();
-    toast(existing ? '菜谱更新好啦' : '收进菜谱啦，改天一起做');
+    toast(existing ? '改好啦' : '收进想吃清单啦，改天一起做');
+  }
+
+  function savePlace(form) {
+    const formData = new FormData(form);
+    const name = String(formData.get('name') || '').trim();
+    if (!name) {
+      toast('先写一下店名吧');
+      return;
+    }
+    const mapUrl = String(formData.get('mapUrl') || '').trim();
+    if (mapUrl && !/^(https?:\/\/|geo:|amapuri:|baidumap:)/i.test(mapUrl)) {
+      toast('地图链接看起来不对，可以直接留空');
+      return;
+    }
+    const wantedBy = splitList(formData.get('wantedBy'), 2).filter((role) => role === 'me' || role === 'partner');
+    const photo = parsePhotoField(formData.get('photo'));
+    const id = form.dataset.id;
+    const existing = id ? state.wishes.places.find((place) => place.id === id) : null;
+    const status = formData.get('status') === 'visited' ? 'visited' : 'wanted';
+    const next = {
+      id: existing ? existing.id : uid(),
+      name,
+      scene: PLACE_SCENES[formData.get('scene')] ? String(formData.get('scene')) : 'other',
+      city: String(formData.get('city') || '').trim(),
+      address: String(formData.get('address') || '').trim(),
+      mapUrl,
+      dishes: splitList(formData.get('dishes'), 12),
+      tags: splitList(formData.get('tags'), 6),
+      note: String(formData.get('note') || '').trim(),
+      photos: photo
+        ? [photo]
+        : (existing && existing.photos ? existing.photos : []),
+      wantedBy: wantedBy.length ? wantedBy : (sync.identity ? [sync.identity] : ['me']),
+      status,
+      favorite: Boolean(formData.get('favorite')),
+      createdAt: existing ? existing.createdAt : new Date().toISOString(),
+      visitedAt: existing ? existing.visitedAt : '',
+      updatedAt: isoNow(),
+    };
+    if (status === 'visited' && !next.visitedAt) next.visitedAt = isoNow();
+    if (status === 'wanted') next.visitedAt = '';
+    if (existing) Object.assign(existing, next);
+    else state.wishes.places.unshift(next);
+    if (!saveState()) return;
+    closeModal();
+    render();
+    toast(existing ? '这家店改好啦' : '收藏好啦，等一个去吃的日子');
   }
 
   function saveAnniversary(form) {
@@ -3588,18 +4789,48 @@
      Data import / export
      ------------------------------------------------------------------------ */
 
-  function exportData() {
-    const data = JSON.stringify(state, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
+  function collectPhotoIds(rootState) {
+    const ids = new Set();
+    const add = (photo) => {
+      if (photo && typeof photo === 'object' && photo.id) ids.add(photo.id);
+    };
+    (rootState.moments || []).forEach((moment) => add(moment.photo));
+    ['me', 'partner'].forEach((role) => {
+      const personal = rootState.personal && rootState.personal[role];
+      ((personal && personal.moments) || []).forEach((moment) => add(moment.photo));
+    });
+    (((rootState.wishes || {}).places) || []).forEach((place) => {
+      (place.photos || []).forEach(add);
+    });
+    return [...ids];
+  }
+
+  async function exportData() {
+    toast('正在打包备份，照片多的话要等一下…');
+    const snapshot = JSON.parse(JSON.stringify(state));
+    const photos = {};
+    for (const id of collectPhotoIds(snapshot)) {
+      const dataUrl = await readPhotoDataUrl(id);
+      if (dataUrl) photos[id] = dataUrl;
+    }
+    const payload = {
+      app: 'xiaoman',
+      kind: 'backup',
+      version: SCHEMA_VERSION,
+      exportedAt: isoNow(),
+      data: snapshot,
+      photos,
+    };
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `小满-我们的数据-${localDateStr()}.json`;
+    link.download = `小满-完整备份-${localDateStr()}.json`;
     document.body.appendChild(link);
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast('备份导出好啦，收好它');
+    toast(`备份导出好啦，含 ${Object.keys(photos).length} 张照片`);
   }
 
   function handleImport(input) {
@@ -3608,32 +4839,48 @@
     const reader = new FileReader();
     reader.onerror = () => toast('文件读取失败，再试一次吧');
     reader.onload = () => {
+      let payload;
       try {
-        const data = JSON.parse(String(reader.result || ''));
-        if (!data || typeof data !== 'object'
-          || !Array.isArray(data.moments)
-          || !Array.isArray(data.recipes)
-          || !Array.isArray(data.anniversaries)) {
-          throw new Error('shape');
-        }
-        openConfirm({
-          title: '导入这份备份？',
-          message: '现在的内容会被这份备份替换。如果现在也有重要的记录，先导出一份再继续。',
-          confirmText: '导入',
-          danger: false,
-          onConfirm: () => {
-            state = normalizeState(data);
-            state.profileDefaultsVersion = PROFILE_DEFAULTS_VERSION;
-            state.onboarded = true;
-            saveState();
-            applyTheme();
-            render();
-            toast('导入成功，你们的小空间回来啦');
-          },
-        });
+        payload = JSON.parse(String(reader.result || ''));
       } catch (error) {
         toast('这个文件不像是小满的备份');
+        input.value = '';
+        return;
       }
+      const data = payload && payload.data ? payload.data : payload;
+      const photos = payload && payload.photos && typeof payload.photos === 'object' ? payload.photos : {};
+      if (!data || typeof data !== 'object'
+        || !Array.isArray(data.moments)
+        || (!Array.isArray(data.anniversaries) && !Array.isArray(data.recipes) && !data.wishes)) {
+        toast('这个文件不像是小满的备份');
+        input.value = '';
+        return;
+      }
+      openConfirm({
+        title: '导入这份备份？',
+        message: `现在的内容会被这份备份替换${Object.keys(photos).length ? `，并写入 ${Object.keys(photos).length} 张照片` : ''}。如果现在也有重要的记录，先导出一份再继续。`,
+        confirmText: '导入',
+        danger: false,
+        onConfirm: async () => {
+          state = normalizeState(data);
+          state.profileDefaultsVersion = PROFILE_DEFAULTS_VERSION;
+          state.onboarded = true;
+          saveState();
+          applyTheme();
+          render();
+          for (const [id, dataUrl] of Object.entries(photos)) {
+            try {
+              await savePhotoFromDataUrl(String(dataUrl), 0, 0, id);
+              queuePhotoUpload(id);
+            } catch (error) {
+              // Skip unreadable photos.
+            }
+          }
+          await migrateInlinePhotos();
+          render();
+          toast('导入成功，你们的小世界回来啦');
+        },
+      });
     };
     reader.readAsText(file);
     input.value = '';
@@ -3645,7 +4892,7 @@
 
   function addTombstone(type, id) {
     if (!state.tombstones || !state.tombstones[type]) {
-      state.tombstones = { moments: {}, recipes: {}, anniversaries: {}, ...(state.tombstones || {}) };
+      state.tombstones = { moments: {}, dishes: {}, places: {}, anniversaries: {}, ...(state.tombstones || {}) };
     }
     state.tombstones[type][id] = isoNow();
   }
@@ -3659,7 +4906,7 @@
       closeModal();
       openConfirm({
         title: '删掉这张小纸条？',
-        message: '它会从我的小抽屉里消失，删掉就找不回来了。',
+        message: '它会从我的小岛里消失，删掉就找不回来了。',
         confirmText: '删掉',
         onConfirm: () => {
           personal.tombstones[id] = isoNow();
@@ -3667,7 +4914,7 @@
           personal.updatedAt = isoNow();
           saveState();
           render();
-          toast('已经从小抽屉里删掉了');
+          toast('已经从小岛里删掉了');
         },
       });
       return;
@@ -3689,20 +4936,39 @@
     });
   }
 
-  function requestDeleteRecipe(id) {
-    const recipe = state.recipes.find((item) => item.id === id);
-    if (!recipe) return;
+  function requestDeleteDish(id) {
+    const dish = state.wishes.dishes.find((item) => item.id === id);
+    if (!dish) return;
     closeModal();
     openConfirm({
-      title: `删掉「${recipe.name}」？`,
-      message: '这道菜的做法会从菜谱里消失，之后就不能再翻到了。',
+      title: `删掉「${dish.name}」？`,
+      message: '这道菜会从想吃清单里消失，之后就不能再翻到了。',
       confirmText: '删掉',
       onConfirm: () => {
-        addTombstone('recipes', id);
-        state.recipes = state.recipes.filter((item) => item.id !== id);
+        addTombstone('dishes', id);
+        state.wishes.dishes = state.wishes.dishes.filter((item) => item.id !== id);
         saveState();
         render();
-        toast('菜谱已经删掉了');
+        toast('已经删掉了');
+      },
+    });
+  }
+
+  function requestDeletePlace(id) {
+    const place = state.wishes.places.find((item) => item.id === id);
+    if (!place) return;
+    closeModal();
+    openConfirm({
+      title: `删掉「${place.name}」？`,
+      message: '这家店会从想吃清单里消失，想再找回来就麻烦了。',
+      confirmText: '删掉',
+      onConfirm: () => {
+        (place.photos || []).forEach((photo) => { if (photo && photo.id) removePhotoBytes(photo.id); });
+        addTombstone('places', id);
+        state.wishes.places = state.wishes.places.filter((item) => item.id !== id);
+        saveState();
+        render();
+        toast('已经删掉了');
       },
     });
   }
@@ -3740,33 +5006,56 @@
   }
 
   function toggleFavorite(id) {
-    const recipe = state.recipes.find((item) => item.id === id);
-    if (!recipe) return;
-    recipe.favorite = !recipe.favorite;
-    recipe.updatedAt = isoNow();
+    const dish = state.wishes.dishes.find((item) => item.id === id);
+    if (!dish) return;
+    dish.favorite = !dish.favorite;
+    dish.updatedAt = isoNow();
     if (!saveState()) return;
     $$('[data-fav-id]').forEach((button) => {
       if (button.dataset.favId !== id) return;
-      button.classList.toggle('is-fav', recipe.favorite);
-      button.setAttribute('aria-pressed', String(recipe.favorite));
-      button.setAttribute('aria-label', recipe.favorite ? '取消收藏' : '收藏');
+      button.classList.toggle('is-fav', dish.favorite);
+      button.setAttribute('aria-pressed', String(dish.favorite));
+      button.setAttribute('aria-label', dish.favorite ? '取消收藏' : '收藏');
       const label = button.querySelector('.fav-label');
       if (label) {
-        label.textContent = recipe.favorite ? '已收藏' : '收藏';
-        button.classList.toggle('btn-soft', recipe.favorite);
-        button.classList.toggle('btn-ghost', !recipe.favorite);
+        label.textContent = dish.favorite ? '已收藏' : '收藏';
+        button.classList.toggle('btn-soft', dish.favorite);
+        button.classList.toggle('btn-ghost', !dish.favorite);
         const heart = button.querySelector('svg.icon');
-        if (heart) heart.classList.toggle('fill', recipe.favorite);
+        if (heart) heart.classList.toggle('fill', dish.favorite);
       }
     });
-    toast(recipe.favorite ? '已放进收藏' : '已取消收藏');
+    toast(dish.favorite ? '已放进收藏' : '已取消收藏');
+  }
+
+  function togglePlaceFavorite(id) {
+    const place = state.wishes.places.find((item) => item.id === id);
+    if (!place) return;
+    place.favorite = !place.favorite;
+    place.updatedAt = isoNow();
+    if (!saveState()) return;
+    $$('[data-fav-id]').forEach((button) => {
+      if (button.dataset.favId !== id) return;
+      button.classList.toggle('is-fav', place.favorite);
+      button.setAttribute('aria-pressed', String(place.favorite));
+      button.setAttribute('aria-label', place.favorite ? '取消收藏' : '收藏');
+      const label = button.querySelector('.fav-label');
+      if (label) {
+        label.textContent = place.favorite ? '已收藏' : '收藏';
+        button.classList.toggle('btn-soft', place.favorite);
+        button.classList.toggle('btn-ghost', !place.favorite);
+        const heart = button.querySelector('svg.icon');
+        if (heart) heart.classList.toggle('fill', place.favorite);
+      }
+    });
+    toast(place.favorite ? '已放进收藏' : '已取消收藏');
   }
 
   function markCooked(id) {
-    const recipe = state.recipes.find((item) => item.id === id);
-    if (!recipe) return;
-    recipe.cookedAt = new Date().toISOString();
-    recipe.updatedAt = isoNow();
+    const dish = state.wishes.dishes.find((item) => item.id === id);
+    if (!dish) return;
+    dish.cookedAt = new Date().toISOString();
+    dish.updatedAt = isoNow();
     if (!saveState()) return;
     $$('[data-cooked-id]').forEach((button) => {
       if (button.dataset.cookedId === id) {
@@ -3775,18 +5064,31 @@
       }
     });
     render();
-    toast(`记下啦，今天做了 ${recipe.name}`);
+    toast(`记下啦，今天做了 ${dish.name}`);
   }
 
-  function randomRecipe() {
-    if (!state.recipes.length) {
-      openRecipeModal();
+  function markVisited(id) {
+    const place = state.wishes.places.find((item) => item.id === id);
+    if (!place) return;
+    place.status = place.status === 'visited' ? 'wanted' : 'visited';
+    place.visitedAt = place.status === 'visited' ? isoNow() : '';
+    place.updatedAt = isoNow();
+    if (!saveState()) return;
+    closeModal();
+    render();
+    toast(place.status === 'visited' ? '记下啦，这家店去过了' : '又放回想去的清单啦');
+  }
+
+  function randomDish() {
+    const dishes = state.wishes.dishes;
+    if (!dishes.length) {
+      openDishModal();
       return;
     }
-    let pool = state.recipes;
+    let pool = dishes;
     if (pool.length > 1) {
       const current = currentDinner();
-      pool = pool.filter((recipe) => !current || recipe.id !== current.id);
+      pool = pool.filter((dish) => !current || dish.id !== current.id);
     }
     const picked = pool[Math.floor(Math.random() * pool.length)];
     if (getRoute() === 'home') {
@@ -3794,15 +5096,28 @@
       render();
       toast('换好啦，今晚吃这个？');
     } else {
-      openRecipeDetail(picked.id);
+      openDishDetail(picked.id);
     }
+  }
+
+  function randomPlace() {
+    const pool = state.wishes.places.filter((place) => place.status === 'wanted');
+    if (!pool.length) {
+      if (!state.wishes.places.length) openPlaceModal();
+      else toast('想去的店都去过啦，再加一家吧');
+      return;
+    }
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    openPlaceDetail(picked.id);
   }
 
   function quickAdd() {
     const route = getRoute();
-    if (route === 'recipes') openRecipeModal();
-    else if (route === 'days') openAnnivModal();
-    else if (ui.space === 'personal') openMomentModal(null, '', { space: 'personal', kind: 'note' });
+    if (route === 'wishes') {
+      if (ui.wishTab === 'places') openPlaceModal();
+      else openDishModal();
+    } else if (route === 'days') openAnnivModal();
+    else if (route === 'me') openMomentModal(null, '', { space: 'personal', kind: 'note' });
     else openMomentModal();
   }
 
@@ -3827,13 +5142,44 @@
     }
 
     if (action === 'open-settings') {
-      if (getRoute() !== 'settings') ui.returnRoute = getRoute();
-      window.location.hash = 'settings';
+      openSettings(actionElement.dataset.tab || 'basic');
+      return;
+    }
+
+    if (action === 'close-settings') {
+      closeSettings();
+      return;
+    }
+
+    if (action === 'settings-tab') {
+      switchSettingsTab(actionElement.dataset.tab || 'basic');
+      return;
+    }
+
+    if (action === 'request-notify-permission') {
+      requestNotifyPermission();
+      return;
+    }
+
+    if (action === 'test-notify') {
+      testNotification();
+      return;
+    }
+
+    if (action === 'toggle-space') {
+      switchSpace();
+      return;
+    }
+
+    if (action === 'switch-identity') {
+      confirmSwitchIdentity();
       return;
     }
 
     if (action === 'back') {
-      backFromSettings();
+      if (isSettingsOpen()) closeSettings();
+      else if (getRoute() === 'history') window.location.hash = 'moments';
+      else window.location.hash = 'home';
       return;
     }
 
@@ -3934,12 +5280,7 @@
     }
 
     if (action === 'add-moment') {
-      openMomentModal(null, '', { space: ui.space === 'personal' ? 'personal' : 'shared', kind: ui.space === 'personal' ? 'note' : 'moment' });
-      return;
-    }
-
-    if (action === 'add-wish') {
-      openMomentModal(null, '', { space: 'shared', kind: 'wish' });
+      openMomentModal();
       return;
     }
 
@@ -3953,43 +5294,32 @@
       return;
     }
 
-    if (action === 'set-space') {
-      const space = actionElement.dataset.space === 'personal' ? 'personal' : 'shared';
-      ui.space = space;
+    if (action === 'add-dish') {
+      openDishModal();
+      return;
+    }
+
+    if (action === 'add-place') {
+      openPlaceModal();
+      return;
+    }
+
+    if (action === 'wish-tab') {
+      ui.wishTab = actionElement.dataset.tab === 'places' ? 'places' : 'dishes';
       render();
-      window.scrollTo({ top: 0, behavior: 'auto' });
       return;
     }
 
-    if (action === 'set-compose-space') {
-      const space = actionElement.dataset.space === 'personal' ? 'personal' : 'shared';
-      if (space === 'personal' && !sync.identity) {
-        toast('先选一下你是哪一位');
-        openIdentityModal();
-        return;
-      }
-      const kindInput = $('#compose-kind');
-      let kind = kindInput ? kindInput.value : 'moment';
-      if (space === 'personal' && !['note', 'gift'].includes(kind)) kind = 'note';
-      if (space === 'shared' && !['moment', 'wish'].includes(kind)) kind = 'moment';
-      syncComposeUI(space, kind);
-      return;
-    }
-
-    if (action === 'set-compose-kind') {
-      const kind = actionElement.dataset.kind || 'moment';
-      const space = $('#compose-space') ? $('#compose-space').value : 'shared';
-      syncComposeUI(space, kind);
+    if (action === 'filter-drawer') {
+      ui.drawerFilter = ['all', 'note', 'gift'].includes(actionElement.dataset.filter)
+        ? actionElement.dataset.filter
+        : 'all';
+      render();
       return;
     }
 
     if (action === 'plan-wish') {
       planWish(actionElement.dataset.id);
-      return;
-    }
-
-    if (action === 'add-recipe') {
-      openRecipeModal();
       return;
     }
 
@@ -4017,28 +5347,28 @@
       ui.momentFilter = ['all', 'me', 'partner'].includes(actionElement.dataset.filter)
         ? actionElement.dataset.filter
         : 'all';
-      $$('#moment-filters .chip').forEach((chip) => {
+      $$('#moment-filters .chip, #history-filters .chip').forEach((chip) => {
         chip.classList.toggle('active', chip.dataset.filter === ui.momentFilter);
       });
       applyMomentFilter();
       return;
     }
 
-    if (action === 'open-recipe') {
-      openRecipeDetail(actionElement.dataset.id);
+    if (action === 'open-dish') {
+      openDishDetail(actionElement.dataset.id);
       return;
     }
 
-    if (action === 'edit-recipe') {
-      const recipe = state.recipes.find((item) => item.id === actionElement.dataset.id);
-      if (!recipe) return;
+    if (action === 'edit-dish') {
+      const dish = state.wishes.dishes.find((item) => item.id === actionElement.dataset.id);
+      if (!dish) return;
       closeModal();
-      window.setTimeout(() => openRecipeModal(recipe), 40);
+      window.setTimeout(() => openDishModal(dish), 40);
       return;
     }
 
-    if (action === 'delete-recipe') {
-      requestDeleteRecipe(actionElement.dataset.id);
+    if (action === 'delete-dish') {
+      requestDeleteDish(actionElement.dataset.id);
       return;
     }
 
@@ -4052,17 +5382,73 @@
       return;
     }
 
-    if (action === 'random-recipe') {
-      randomRecipe();
+    if (action === 'random-dish') {
+      randomDish();
       return;
     }
 
-    if (action === 'filter-tag') {
-      ui.recipeTag = actionElement.dataset.tag || '全部';
-      $$('#recipe-tags .chip').forEach((chip) => {
-        chip.classList.toggle('active', chip.dataset.tag === ui.recipeTag);
+    if (action === 'open-place') {
+      openPlaceDetail(actionElement.dataset.id);
+      return;
+    }
+
+    if (action === 'edit-place') {
+      const place = state.wishes.places.find((item) => item.id === actionElement.dataset.id);
+      if (!place) return;
+      closeModal();
+      window.setTimeout(() => openPlaceModal(place), 40);
+      return;
+    }
+
+    if (action === 'delete-place') {
+      requestDeletePlace(actionElement.dataset.id);
+      return;
+    }
+
+    if (action === 'toggle-place-favorite') {
+      togglePlaceFavorite(actionElement.dataset.favId);
+      return;
+    }
+
+    if (action === 'mark-visited') {
+      markVisited(actionElement.dataset.id);
+      return;
+    }
+
+    if (action === 'open-map') {
+      openPlaceMap(actionElement.dataset.id);
+      return;
+    }
+
+    if (action === 'random-place') {
+      randomPlace();
+      return;
+    }
+
+    if (action === 'filter-dish-tag') {
+      ui.dishTag = actionElement.dataset.tag || '全部';
+      $$('#dish-tags .chip').forEach((chip) => {
+        chip.classList.toggle('active', chip.dataset.tag === ui.dishTag);
       });
-      applyRecipeFilters();
+      applyWishFilters();
+      return;
+    }
+
+    if (action === 'filter-place-scene') {
+      ui.placeScene = actionElement.dataset.scene || 'all';
+      $$('#place-scenes .chip').forEach((chip) => {
+        chip.classList.toggle('active', chip.dataset.scene === ui.placeScene);
+      });
+      applyWishFilters();
+      return;
+    }
+
+    if (action === 'filter-place-who') {
+      ui.placeWho = actionElement.dataset.who || 'all';
+      $$('#place-who .chip').forEach((chip) => {
+        chip.classList.toggle('active', chip.dataset.who === ui.placeWho);
+      });
+      applyWishFilters();
       return;
     }
 
@@ -4132,13 +5518,25 @@
       return;
     }
 
-    if (action === 'set-author') {
-      const group = actionElement.closest('.segmented');
+    if (action === 'pick-who') {
+      const picker = actionElement.closest('.who-picker');
       const form = actionElement.closest('form');
-      if (!group || !form) return;
-      $$('button', group).forEach((button) => button.classList.toggle('active', button === actionElement));
-      const hidden = form.querySelector('input[name="author"]');
-      if (hidden) hidden.value = actionElement.dataset.author === 'partner' ? 'partner' : 'me';
+      if (!picker || !form) return;
+      actionElement.classList.toggle('active');
+      const active = $$('.who-option.active', picker).map((button) => button.dataset.who);
+      if (!active.length) actionElement.classList.add('active');
+      const hidden = form.querySelector('.who-value');
+      if (hidden) hidden.value = $$('.who-option.active', picker).map((button) => button.dataset.who).join(',');
+      return;
+    }
+
+    if (action === 'pick-scene') {
+      const picker = actionElement.closest('.scene-picker');
+      const form = actionElement.closest('form');
+      if (!picker || !form) return;
+      $$('.scene-option', picker).forEach((button) => button.classList.toggle('active', button === actionElement));
+      const hidden = form.querySelector('.scene-value');
+      if (hidden) hidden.value = actionElement.dataset.scene || 'home';
       return;
     }
 
@@ -4163,8 +5561,15 @@
     }
 
     if (action === 'photo-trigger') {
-      const input = $('#moment-photo');
+      const form = actionElement.closest('form');
+      const scope = form || document;
+      const input = scope.querySelector('.photo-input:not([capture])');
       if (input) input.click();
+      return;
+    }
+
+    if (action === 'photo-camera') {
+      startCamera(actionElement);
       return;
     }
 
@@ -4208,20 +5613,32 @@
 
   function handleSubmit(event) {
     const form = event.target;
-    if (!['moment-form', 'recipe-form', 'anniv-form', 'profile-form', 'sync-form', 'update-form'].includes(form.id)) return;
+    if (!['moment-form', 'dish-form', 'place-form', 'anniv-form', 'profile-form', 'sync-form', 'update-form', 'notify-form'].includes(form.id)) return;
     event.preventDefault();
     if (form.id === 'moment-form') saveMoment(form);
-    else if (form.id === 'recipe-form') saveRecipe(form);
+    else if (form.id === 'dish-form') saveDish(form);
+    else if (form.id === 'place-form') savePlace(form);
     else if (form.id === 'anniv-form') saveAnniversary(form);
     else if (form.id === 'profile-form') saveProfile(form);
     else if (form.id === 'sync-form') saveSyncForm(form);
     else if (form.id === 'update-form') saveUpdateForm(form);
+    else if (form.id === 'notify-form') saveNotifyForm(form);
   }
 
   function handleInput(event) {
-    if (event.target.id === 'recipe-search') {
-      ui.recipeQuery = event.target.value;
-      applyRecipeFilters();
+    if (event.target.id === 'dish-search') {
+      ui.dishQuery = event.target.value;
+      applyWishFilters();
+      return;
+    }
+    if (event.target.id === 'place-search') {
+      ui.placeQuery = event.target.value;
+      applyWishFilters();
+      return;
+    }
+    if (event.target.id === 'history-search') {
+      ui.momentQuery = event.target.value;
+      applyMomentFilter();
       return;
     }
     if (event.target.id === 'moment-text') {
@@ -4231,7 +5648,7 @@
   }
 
   function handleChange(event) {
-    if (event.target.id === 'moment-photo') {
+    if (event.target.classList && event.target.classList.contains('photo-input')) {
       handlePhoto(event.target);
       return;
     }
@@ -4249,6 +5666,8 @@
         confirmCallback = null;
       } else if ($('#modal').classList.contains('open')) {
         closeModal();
+      } else if (isSettingsOpen()) {
+        closeSettings();
       }
       return;
     }
@@ -4288,6 +5707,7 @@
     state = loadState();
     sync = loadSync();
     update = loadUpdate();
+    notify = loadNotify();
     saveSync();
     saveState({ skipSync: true });
     loadUiPrefs();
@@ -4314,9 +5734,16 @@
     render();
     updateSyncUI();
     updateUpdateUI();
+    syncNotifyConfig();
+    consumeLaunchRoute();
     refreshCurrentVersion();
+    if (!sync.identity) {
+      window.setTimeout(() => openIdentityModal(), 420);
+    } else {
+      window.setTimeout(() => { migrateInlinePhotos(); }, 900);
+    }
     if (sync.auto && isSyncConfigured()) {
-      window.setTimeout(() => syncNow({ silent: true }), 1200);
+      window.setTimeout(() => syncNow({ silent: true }), 1400);
     }
     if (isNativeApp() && update.auto && updateRepo()) {
       const lastCheck = new Date(update.lastCheckAt).getTime();
@@ -4329,6 +5756,20 @@
         syncNow({ silent: true });
       }
     }, SYNC_POLL_MS);
+  }
+
+  async function consumeLaunchRoute() {
+    const plugin = notifyPlugin();
+    if (!isNativeApp() || !plugin) return;
+    try {
+      const result = await plugin.getLaunchRoute();
+      const route = result && result.route;
+      if (route && ['home', 'moments', 'wishes', 'days', 'me'].includes(route)) {
+        window.location.hash = route;
+      }
+    } catch (error) {
+      // No pending route.
+    }
   }
 
   init();

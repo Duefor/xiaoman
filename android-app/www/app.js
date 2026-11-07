@@ -2362,7 +2362,7 @@
         await plugin.openExternal({ url });
         return;
       } catch (error) {
-        toast('没有找到能打开地图的应用');
+        toast('没有找到能打开这个链接的应用');
         return;
       }
     }
@@ -4269,38 +4269,167 @@
     return text.replace(/\+/g, ' ');
   }
 
-  function parsePlaceLink(raw) {
-    const text = String(raw || '').trim();
-    if (!text) return null;
-    const decoded = decodeLoose(text);
-    const result = { name: '', city: '', address: '', mapUrl: '', lat: '', lng: '' };
-    if (/^https?:\/\//i.test(text)) result.mapUrl = text;
+  const PLACE_PLATFORMS = {
+    amap: '高德地图',
+    baidu: '百度地图',
+    tencent: '腾讯地图',
+    dianping: '大众点评',
+    meituan: '美团',
+    other: '分享链接',
+  };
 
-    let match = decoded.match(/[?&](?:name|poiname|dname|sname)=([^&]+)/);
-    if (match) result.name = match[1];
-    match = decoded.match(/\/poi\/([^/@?]+)\/@/);
-    if (match) result.name = match[1];
-    match = decoded.match(/[?&](?:position|location)=([\d.]+),([\d.]+)/);
-    if (match) {
-      result.lng = match[1];
-      result.lat = match[2];
+  function placePlatformLabel(place) {
+    return PLACE_PLATFORMS[detectPlacePlatform(place && place.mapUrl)] || PLACE_PLATFORMS.other;
+  }
+
+  function isNavigationLink(url) {
+    const value = String(url || '');
+    return /^(geo:|amapuri:|baidumap:|qqmap:)/i.test(value)
+      || /uri\.amap\.com|map\.baidu\.com\/poi|apis\.map\.qq\.com|map\.qq\.com/i.test(value);
+  }
+
+  function placeMapActionLabel(place) {
+    if (!place || !place.mapUrl) return '按地址找';
+    return isNavigationLink(place.mapUrl) ? '导航去这里' : `打开${placePlatformLabel(place)}`;
+  }
+
+  function cleanPlaceText(value, limit = 60) {
+    let text = String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    text = text.replace(/^[\s"'“”‘’【】\[\]]+|[\s"'“”‘’【】\[\]]+$/g, '');
+    text = text.replace(/^店名[:：]\s*/, '');
+    text = text.replace(/\s*[-|｜]\s*(大众点评|美团|高德地图|百度地图|腾讯地图).*$/, '');
+    return text.slice(0, limit);
+  }
+
+  function extractFirstUrl(source) {
+    const text = String(source || '');
+    const match = text.match(/https?:\/\/[^\s"'<>]+/i);
+    if (match) return match[0].replace(/[，。；、）)】]+$/, '');
+    const scheme = text.trim().match(/^(geo|amapuri|baidumap|qqmap):\S+/i);
+    return scheme ? scheme[0] : '';
+  }
+
+  function guessNameFromShareText(source, url) {
+    let text = String(source || '').replace(url || '____', ' ');
+    text = text.replace(/https?:\/\/\S+/g, ' ');
+    text = text.replace(/^(这家店不错|推荐给你|分享给你|复制|打开)[，,。:：\s]*/, ' ');
+    const bracket = text.match(/【(.+?)】/);
+    if (bracket) return cleanPlaceText(bracket[1], 40);
+
+    const head = text.split(/(?:人均|地址|位置|地点|电话|营业|评分|距离|推荐|团购|优惠|高德地图|百度地图|腾讯地图|大众点评|美团)/)[0].trim();
+    if (head.length >= 2 && head.length <= 40 && !/[，。；]/.test(head)) {
+      return cleanPlaceText(head, 40);
     }
-    match = decoded.match(/[?&]dlat=([\d.]+)[^&]*&(?:[^&]*&)*?dlon=([\d.]+)/);
+
+    const lines = text.split(/[\n\r]+/)
+      .map((line) => line.replace(/https?:\/\/\S+/g, ' ').trim())
+      .filter(Boolean);
+    const skip = /^(地址|位置|地点|人均|电话|营业|评分|距离|推荐|复制|打开|分享|来自|时间|这家|一家)/;
+    for (const line of lines) {
+      const named = line.match(/(?:店名|名称|商家|餐厅)[:：]\s*(.+)/);
+      if (named) return cleanPlaceText(named[1], 40);
+      const split = line.match(/^(.+?)\s*[-|｜]\s*(?:大众点评|美团|高德地图|百度地图|腾讯地图)/);
+      if (split) return cleanPlaceText(split[1], 40);
+    }
+    for (const line of lines) {
+      if (skip.test(line)) continue;
+      if (/[，。；]/.test(line)) continue;
+      if (line.length < 2 || line.length > 40) continue;
+      return cleanPlaceText(line, 40);
+    }
+    return '';
+  }
+
+  function guessAddressFromShareText(source) {
+    const match = String(source || '').match(/(?:地址|位置|地点)[:：]\s*([^\n\r]*?)(?=\s*https?:\/\/|$)/);
+    return match ? cleanPlaceText(match[1], 120) : '';
+  }
+
+  function detectPlacePlatform(url) {
+    const value = String(url || '').toLowerCase();
+    if (/amap|gaode/.test(value)) return 'amap';
+    if (/baidu|bdimg/.test(value)) return 'baidu';
+    if (/qq\.com|tencent|qqmap/.test(value)) return 'tencent';
+    if (/dianping/.test(value)) return 'dianping';
+    if (/meituan|nuomi/.test(value)) return 'meituan';
+    return 'other';
+  }
+
+  function parsePlaceLink(raw) {
+    const source = String(raw || '').trim();
+    if (!source) return null;
+    const url = extractFirstUrl(source);
+    const decoded = decodeLoose(source);
+    const result = {
+      name: '',
+      city: '',
+      address: '',
+      mapUrl: url,
+      lat: '',
+      lng: '',
+      platform: detectPlacePlatform(url),
+    };
+
+    // 腾讯地图 URI：marker=coord:lat,lng;title:店名;addr:地址
+    let match = decoded.match(/marker=coord:([\d.]+),([\d.]+)[^#]*?title:([^;&]+)/i);
     if (match) {
       result.lat = match[1];
       result.lng = match[2];
+      result.name = cleanPlaceText(match[3], 40);
     }
-    match = decoded.match(/[?&](?:address|addr|adname)=([^&]+)/);
-    if (match) result.address = match[1];
-    match = decoded.match(/[?&](?:city|cityname)=([^&]+)/);
-    if (match) result.city = match[1];
+    if (!result.name) {
+      match = decoded.match(/[?&](?:name|poiname|dname|sname|title|what|q|query)=([^&]+)/i);
+      if (match) result.name = cleanPlaceText(match[1], 40);
+    }
+    if (!result.name) {
+      match = decoded.match(/\/poi\/([^/@?]+)\/@/);
+      if (match) result.name = cleanPlaceText(match[1], 40);
+    }
 
-    const strip = (value, limit) => value.replace(/<[^>]*>/g, '').trim().slice(0, limit);
-    result.name = strip(result.name, 40);
-    result.address = strip(result.address, 120);
-    result.city = strip(result.city, 20);
+    if (!result.lat || !result.lng) {
+      match = decoded.match(/[?&](?:position|location)=([\d.]+),([\d.]+)/i);
+      if (match) {
+        result.lng = match[1];
+        result.lat = match[2];
+      }
+    }
+    if (!result.lat || !result.lng) {
+      match = decoded.match(/[?&]dlat=([\d.]+)[^&]*&(?:[^&]*&)*?dlon=([\d.]+)/i);
+      if (match) {
+        result.lat = match[1];
+        result.lng = match[2];
+      }
+    }
+    if (!result.lat || !result.lng) {
+      match = decoded.match(/coord:([\d.]+),([\d.]+)/i);
+      if (match) {
+        result.lat = match[1];
+        result.lng = match[2];
+      }
+    }
 
-    if (result.lat && result.lng) {
+    match = decoded.match(/[?&](?:address|addr|adname|daddr)=([^&]+)/i);
+    if (match) result.address = cleanPlaceText(match[1], 120);
+    if (!result.address) {
+      match = decoded.match(/addr:([^;&]+)/i);
+      if (match) result.address = cleanPlaceText(match[1], 120);
+    }
+    if (!result.address) result.address = guessAddressFromShareText(decoded);
+
+    match = decoded.match(/[?&](?:city|cityname)=([^&]+)/i);
+    if (match) result.city = cleanPlaceText(match[1], 20);
+    if (!result.city) {
+      const cityMatch = decoded.match(/([\u4e00-\u9fa5]{2,6}市)/);
+      if (cityMatch) result.city = cityMatch[1].replace(/市$/, '');
+    }
+
+    if (!result.name) result.name = guessNameFromShareText(source, url);
+    if (!result.name) {
+      const title = decoded.match(/<title[^>]*>([^<]+)<\/title>/i);
+      if (title) result.name = cleanPlaceText(title[1], 40);
+    }
+
+    if (!result.mapUrl && result.lat && result.lng) {
       const label = encodeURIComponent(result.name || '想去的店');
       result.mapUrl = `geo:${result.lat},${result.lng}?q=${result.lat},${result.lng}(${label})`;
     }
@@ -4309,6 +4438,12 @@
 
   function fillPlaceForm(form, parsed) {
     if (!form || !parsed) return;
+    if (parsed.name) {
+      ['#place-name', '#place-city', '#place-address', '#place-map'].forEach((selector) => {
+        const input = form.querySelector(selector);
+        if (input) input.value = '';
+      });
+    }
     const setValue = (selector, value) => {
       const input = form.querySelector(selector);
       if (input && value) input.value = value;
@@ -4350,10 +4485,10 @@
         <input class="input" id="place-name" name="name" maxlength="40" value="${esc(data.name || '')}" placeholder="比如：楼下那家小面馆" required>
       </div>
       <div class="link-assist">
-        <input class="input" id="place-link" type="text" placeholder="粘贴地图/点评分享链接，自动识别店名" aria-label="粘贴分享链接自动识别">
+        <textarea class="input link-input" id="place-link" rows="2" placeholder="粘贴分享链接或整段分享文字，自动识别" aria-label="粘贴分享链接自动识别"></textarea>
         <button class="btn btn-ghost btn-sm" type="button" data-action="parse-place-link">识别</button>
       </div>
-      <p class="link-assist-hint">认不出来也没关系：只填店名就能收藏，位置和菜以后随时能补。</p>
+      <p class="link-assist-hint">支持高德 / 百度 / 腾讯地图、美团、大众点评的分享链接或整段分享文字；认不出来也没关系，只填店名就能收藏。</p>
 
       <div class="field" style="margin-top:15px">
         <span class="field-label">归到哪一栏 <span class="field-hint">决定什么时候方便去</span></span>
@@ -4583,6 +4718,7 @@
         <span>${icon('home')} ${esc(place.city || '没写城市')}</span>
         <span>${esc(place.address || '还没写位置')}</span>
         <span>${covered ? '已去过' : '想去'}</span>
+        ${place.mapUrl ? `<span>${icon('arrow')} ${esc(placePlatformLabel(place))}</span>` : ''}
       </div>
       ${place.dishes.length ? `<div class="detail-section"><h4>想吃的菜</h4><div class="chips-row">${place.dishes.map((dish) => `<span class="tag">${esc(dish)}</span>`).join('')}</div></div>` : ''}
       ${place.tags.length ? `<div class="detail-section"><h4>标签</h4><div class="chips-row">${place.tags.map((tag) => `<span class="tag">${esc(tag)}</span>`).join('')}</div></div>` : ''}
@@ -4592,7 +4728,7 @@
         <div>${(place.wantedBy || []).map((role) => `${avatarFor(role, 'tiny')} ${esc(nameOf(role))}`).join('　')}</div>
       </div>
       <div class="detail-actions">
-        <button class="btn btn-primary" type="button" data-action="open-map" data-id="${esc(place.id)}">${icon('cloud')} 导航去这里</button>
+        <button class="btn btn-primary" type="button" data-action="open-map" data-id="${esc(place.id)}">${icon('cloud')} ${esc(placeMapActionLabel(place))}</button>
         <button class="btn ${covered ? 'is-done' : 'btn-ghost'}" type="button" data-action="mark-visited" data-id="${esc(place.id)}">${icon('check')} ${covered ? '再去一次' : '我去过啦'}</button>
         <button class="btn ${place.favorite ? 'btn-soft' : 'btn-ghost'}" type="button" data-action="toggle-place-favorite" data-fav-id="${esc(place.id)}">
           ${icon('heart', place.favorite ? 'fill' : '')}<span class="fav-label">${place.favorite ? '已收藏' : '收藏'}</span>
@@ -5205,7 +5341,7 @@
       return;
     }
     const mapUrl = String(formData.get('mapUrl') || '').trim();
-    if (mapUrl && !/^(https?:\/\/|geo:|amapuri:|baidumap:)/i.test(mapUrl)) {
+    if (mapUrl && !/^(https?:\/\/|geo:|amapuri:|baidumap:|qqmap:)/i.test(mapUrl)) {
       toast('地图链接看起来不对，可以直接留空');
       return;
     }
@@ -5976,7 +6112,9 @@
         return;
       }
       fillPlaceForm(form, parsed);
-      if (parsed.name) toast(`认出「${parsed.name}」`);
+      const platform = PLACE_PLATFORMS[parsed.platform] || '分享链接';
+      if (parsed.name && parsed.address) toast(`从${platform}认出「${parsed.name}」，地址也填好了`);
+      else if (parsed.name) toast(`从${platform}认出「${parsed.name}」`);
       else toast('链接记下了，店名补一下');
       return;
     }
@@ -6376,14 +6514,6 @@
       } else if (isSettingsOpen()) {
         closeSettings();
       }
-      return;
-    }
-
-    if (event.key === 'Enter' && event.target.id === 'place-link') {
-      event.preventDefault();
-      const form = event.target.closest('form');
-      const button = form ? form.querySelector('[data-action="parse-place-link"]') : null;
-      if (button) button.click();
       return;
     }
 

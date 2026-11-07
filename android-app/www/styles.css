@@ -6644,3 +6644,17 @@ body.island-mode .toast {
   width: 14px;
   height: 14px;
 }
+
+.link-assist {
+  align-items: flex-end;
+}
+
+.link-assist .link-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  max-height: 92px;
+  padding: 8px 11px;
+  line-height: 1.5;
+  resize: vertical;
+}

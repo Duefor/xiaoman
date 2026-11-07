@@ -375,9 +375,12 @@ html[data-motion="off"] *::after {
   --spring-soft: cubic-bezier(.22, 1.2, .36, 1);
 }
 
-/* 弹窗：先缩一下再“啵”地弹出来 */
-.sheet {
-  animation: cute-sheet .42s var(--spring) both;
+/* 弹窗：只在桌面端做“啵”的回弹。
+   手机上是贴底抽屉，任何带 translate(-50%) 的动画都会把它推出屏幕，所以必须隔离。 */
+@media (min-width: 681px) {
+  .sheet {
+    animation: cute-sheet .42s var(--spring) both;
+  }
 }
 
 .modal-backdrop,
@@ -544,8 +547,10 @@ html[data-motion="subtle"] .wish-card {
   100% { opacity: 1; transform: translateY(0); }
 }
 
-html[data-motion="subtle"] .sheet {
-  animation: modal-pop .28s var(--ease) both;
+@media (min-width: 681px) {
+  html[data-motion="subtle"] .sheet {
+    animation: modal-pop .28s var(--ease) both;
+  }
 }
 
 html[data-motion="subtle"] .avatar-btn:hover,

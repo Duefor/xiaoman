@@ -11,8 +11,8 @@
   const SYNC_KEY = 'xiaoman.sync.v1';
   const UPDATE_KEY = 'xiaoman.update.v1';
   const NOTIFY_KEY = 'xiaoman.notify.v1';
-  const APP_VERSION_NAME = '3.3.0';
-  const APP_VERSION_CODE = 30300;
+  const APP_VERSION_NAME = '3.3.1';
+  const APP_VERSION_CODE = 30301;
   const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
   const UPDATE_REPO_PLACEHOLDER = 'Duefor/xiaoman';
   const SCHEMA_VERSION = 5;
@@ -101,6 +101,7 @@
     returnRoute: 'home',
     settingsTab: 'basic',
     lastShared: 'home',
+    historyMonth: '',
   };
   let lastFocused = null;
   let confirmCallback = null;
@@ -2422,6 +2423,10 @@
     if (menuSub) menuSub.textContent = identity ? `我是 ${ownName}` : '还没选择身份';
     const version = $('#avatar-menu-version');
     if (version) version.textContent = `v${currentVersionName}`;
+    const spaceLabel = $('#avatar-space-label');
+    if (spaceLabel) spaceLabel.textContent = getRoute() === 'me' ? '回到我们的空间' : '我的小岛';
+    const spaceIcon = $('#avatar-space-icon');
+    if (spaceIcon) spaceIcon.setAttribute('href', getRoute() === 'me' ? '#i-heart' : '#i-island');
     $$('.avatar-btn').forEach((button) => {
       button.classList.toggle('active', isSettingsOpen());
     });
@@ -2493,8 +2498,9 @@
   }
 
   function setActiveNav(route) {
+    const navRoute = route === 'history' ? 'moments' : route;
     $$('[data-nav]').forEach((link) => {
-      const active = link.dataset.nav === route;
+      const active = link.dataset.nav === navRoute;
       link.classList.toggle('active', active);
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
@@ -2535,6 +2541,7 @@
     updateSidebar();
     updateAvatar();
     updateSpaceToggle();
+    document.body.classList.toggle('island-mode', route === 'me');
     setActiveNav(route);
     updateFab(route);
     updateTitle(route);
@@ -2860,48 +2867,49 @@
     const noteCount = items.filter((item) => item.kind !== 'gift').length;
     const giftCount = items.length - noteCount;
     const filter = ui.drawerFilter || 'all';
+    const syncText = sync.lastSyncAt ? formatSyncTime(sync.lastSyncAt) : '还没';
     const visible = items.filter((item) => {
       if (filter === 'note') return item.kind !== 'gift';
       if (filter === 'gift') return item.kind === 'gift';
       return true;
     });
-    return `<header class="page-head island-head">
+    return `<button class="island-back" type="button" data-action="toggle-space">${icon('chevron')} 回到我们的空间</button>
+    <header class="page-head island-head">
       <div>
         <p class="eyebrow">MY LITTLE ISLAND · 只给自己</p>
         <h1 class="page-title">${esc(name)}的小岛</h1>
-        <p class="page-sub">这里只有你能看见。写给 ${esc(otherName)} 的惊喜、想记下来的念头，都先放在岛上。</p>
+        <p class="page-sub">写给 ${esc(otherName)} 的惊喜、想记下来的念头，都先放在岛上。</p>
       </div>
     </header>
-    <section class="drawer-hero rise">
-      <div class="drawer-kicker">${icon('gift')} PRIVATE · 不上锁，但只属于你</div>
-      <div class="island-identity">
+    <section class="island-hero rise">
+      <div class="island-top">
         <span class="avatar ${identity || 'me'}">${esc(initialOf(name))}</span>
-        <div>
+        <div class="island-copy">
           <strong>我是 ${esc(name)}</strong>
           <small>身份已锁定 · 小岛跟着这台手机走</small>
         </div>
         <button class="btn btn-ghost btn-sm" type="button" data-action="switch-identity">切换身份</button>
       </div>
-      <div class="island-stats">
-        <span><strong>${noteCount}</strong> 张小纸条</span>
-        <span><strong>${giftCount}</strong> 个礼物计划</span>
-        <span>${sync.lastSyncAt ? `<strong>${esc(formatSyncTime(sync.lastSyncAt))}</strong> 最近同步` : '<strong>还没同步</strong> 到云端'}</span>
+      <div class="island-stats-grid">
+        <div><strong>${noteCount}</strong><span>张小纸条</span></div>
+        <div><strong>${giftCount}</strong><span>个礼物计划</span></div>
+        <div><strong>${esc(syncText)}</strong><span>上次同步</span></div>
       </div>
-      <div class="drawer-actions">
+      <div class="island-actions">
         <button class="btn btn-primary" type="button" data-action="add-personal-note">${icon('edit')} 写张小纸条</button>
         <button class="btn btn-ghost" type="button" data-action="add-personal-gift">${icon('gift')} 记个礼物计划</button>
       </div>
     </section>
-    <div class="filter-bar">
-      <div class="chips-row" id="drawer-filters">
-        <button class="chip ${filter === 'all' ? 'active' : ''}" type="button" data-action="filter-drawer" data-filter="all">全部 · ${items.length}</button>
-        <button class="chip ${filter === 'note' ? 'active' : ''}" type="button" data-action="filter-drawer" data-filter="note">小纸条 · ${noteCount}</button>
-        <button class="chip ${filter === 'gift' ? 'active' : ''}" type="button" data-action="filter-drawer" data-filter="gift">礼物计划 · ${giftCount}</button>
-      </div>
-    </div>
     ${items.length
-      ? `<div class="drawer-timeline">${visible.map(personalCard).join('')}</div>`
-      : `<div class="drawer-empty">${emptyState('🎁', '小岛还是空的', '可以藏一句想说的话，也可以记一个准备送出的礼物。', `<button class="btn btn-soft btn-sm" data-action="add-personal-note">${icon('plus')} 写第一张</button>`)}</div>`}
+      ? `<div class="filter-bar island-filters">
+          <div class="chips-row" id="drawer-filters">
+            <button class="chip ${filter === 'all' ? 'active' : ''}" type="button" data-action="filter-drawer" data-filter="all">全部 · ${items.length}</button>
+            <button class="chip ${filter === 'note' ? 'active' : ''}" type="button" data-action="filter-drawer" data-filter="note">小纸条 · ${noteCount}</button>
+            <button class="chip ${filter === 'gift' ? 'active' : ''}" type="button" data-action="filter-drawer" data-filter="gift">礼物计划 · ${giftCount}</button>
+          </div>
+        </div>
+        <div class="drawer-timeline">${visible.map(personalCard).join('')}</div>`
+      : `<div class="drawer-empty island-empty">${emptyState('🎁', '小岛还是空的', '可以藏一句想说的话，也可以记一个准备送出的礼物。', `<button class="btn btn-soft btn-sm" data-action="add-personal-note">${icon('plus')} 写第一张</button>`)}</div>`}
     <p class="count-note" style="margin-top:18px;text-align:center">小岛上的内容会跟着你的身份同步到坚果云 · 对方看不到</p>
     `;
   }
@@ -2967,26 +2975,75 @@
     `;
   }
 
+  function monthKeyOf(date) {
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+  }
+
+  function currentMonthKey() {
+    return monthKeyOf(new Date());
+  }
+
+  function parseMonthKey(key) {
+    const parts = String(key || '').split('-').map((item) => Number(item));
+    if (parts.length < 2 || !parts[0] || !parts[1]) return new Date();
+    return new Date(parts[0], parts[1] - 1, 1);
+  }
+
+  function shiftMonthKey(key, delta) {
+    const date = parseMonthKey(key);
+    date.setMonth(date.getMonth() + delta);
+    return monthKeyOf(date);
+  }
+
+  function monthLabelCN(key) {
+    const date = parseMonthKey(key);
+    return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+  }
+
+  function momentsInMonth(key) {
+    return sortedMoments().filter((moment) => {
+      const date = new Date(moment.date);
+      return !Number.isNaN(date.getTime()) && monthKeyOf(date) === key;
+    });
+  }
+
+  function latestRecordedMonth() {
+    const list = sortedMoments();
+    for (const moment of list) {
+      const date = new Date(moment.date);
+      if (!Number.isNaN(date.getTime())) return monthKeyOf(date);
+    }
+    return currentMonthKey();
+  }
+
   function historyView() {
     const all = sortedMoments();
-    const oldest = all.length ? new Date(all[all.length - 1].date) : null;
-    const fromLabel = oldest && !Number.isNaN(oldest.getTime())
-      ? `${oldest.getFullYear()}年${oldest.getMonth() + 1}月${oldest.getDate()}日`
-      : '第一天';
+    if (!ui.historyMonth) ui.historyMonth = currentMonthKey();
+    const key = ui.historyMonth;
+    const monthList = momentsInMonth(key);
+    const label = monthLabelCN(key);
     return `<header class="page-head">
       <div>
-        <p class="eyebrow">OUR ARCHIVE · 全部日常</p>
+        <p class="eyebrow">OUR ARCHIVE · 按月份翻</p>
         <h1 class="page-title">历史记录</h1>
-        <p class="page-sub">从 ${fromLabel} 到现在，一共 ${all.length} 条。</p>
+        <p class="page-sub">先选一个月份，再看那个月发生的事。全部 ${all.length} 条。</p>
       </div>
       <div class="head-actions">
         <button class="btn btn-ghost" type="button" data-action="go" data-route="moments">${icon('arrow')}<span class="btn-label">回到最近</span></button>
       </div>
     </header>
+    <div class="month-bar">
+      <button class="month-step prev" type="button" data-action="history-prev" aria-label="上个月">${icon('chevron')}</button>
+      <label class="month-pick">
+        <input type="month" id="history-month" value="${esc(key)}" aria-label="选择月份">
+      </label>
+      <button class="month-step" type="button" data-action="history-next" aria-label="下个月">${icon('chevron')}</button>
+      <span class="month-total">${monthList.length} 条</span>
+    </div>
     <div class="recipe-toolbar">
       <div class="search-box">
         ${icon('search')}
-        <input id="history-search" type="search" value="${esc(ui.momentQuery || '')}" placeholder="搜一句话、一个人…" aria-label="搜索历史日常">
+        <input id="history-search" type="search" value="${esc(ui.momentQuery || '')}" placeholder="搜这个月的一句话、一个人…" aria-label="搜索这个月的日常">
       </div>
       <div class="chips-row" id="history-filters">
         <button class="chip ${ui.momentFilter === 'all' ? 'active' : ''}" type="button" data-action="filter-moments" data-filter="all">全部</button>
@@ -2994,14 +3051,15 @@
         <button class="chip ${ui.momentFilter === 'partner' ? 'active' : ''}" type="button" data-action="filter-moments" data-filter="partner">${esc(state.names.partner)}</button>
       </div>
     </div>
-    ${all.length
-      ? `<div class="timeline" id="history-timeline">${groupMomentsByMonth(all)}</div>
+    ${monthList.length
+      ? `<div class="timeline" id="history-timeline">${groupMoments(monthList)}</div>
          <div class="empty small hidden" id="moment-filter-empty">
            <span class="empty-emoji">🔍</span>
-           <strong>没有找到这段记忆</strong>
-           <p>换个关键词试试，或者点「全部」。</p>
+           <strong>这个月没有找到</strong>
+           <p>换个关键词，或者点「全部」。</p>
          </div>`
-      : emptyState('📦', '还没有历史', '等日常多起来，这里会按月收好你们的故事。')}
+      : `${emptyState('🗓️', `${label}还没有记录`, '换一个月份看看，或者回到最近三天。', `<button class="btn btn-soft btn-sm" data-action="history-latest">${icon('clock')} 看最近有记录的月份</button>`)}
+         <div class="month-jump"><button type="button" data-action="history-latest">跳到最近有记录的月份</button></div>`}
     `;
   }
 
@@ -3232,10 +3290,6 @@
     updateBodyLock();
     updateAvatar();
     renderSettingsContent();
-    window.setTimeout(() => {
-      const focusable = $('#settings-content input:not([type="hidden"]):not([type="file"]), #settings-content select, #settings-content textarea');
-      if (focusable) focusable.focus({ preventScroll: true });
-    }, 90);
   }
 
   function closeSettings() {
@@ -3290,8 +3344,15 @@
         ${identity ? `<form id="profile-form">
           <div class="form-grid">
             <div class="field">
-              <label for="profile-me">我的名字</label>
-              <input class="input" id="profile-me" name="myName" maxlength="12" value="${esc(myName)}" autocomplete="off" required>
+              <label>我的名字</label>
+              <div class="name-display" id="name-display">
+                <strong id="profile-name-text">${esc(myName)}</strong>
+                <button class="btn btn-ghost btn-sm" type="button" data-action="edit-name">更改名字</button>
+              </div>
+              <div class="name-editor hidden" id="name-editor">
+                <input class="input" id="profile-me" name="myName" maxlength="12" value="${esc(myName)}" autocomplete="off" required>
+                <button class="btn btn-ghost btn-sm" type="button" data-action="cancel-name">取消</button>
+              </div>
             </div>
             <div class="field">
               <label>TA 的名字</label>
@@ -3305,7 +3366,7 @@
           <div class="form-actions">
             <button class="btn btn-ghost" type="button" data-action="switch-identity">切换身份</button>
             <span class="spacer"></span>
-            <button class="btn btn-primary" type="submit">${icon('check')} 保存我的名字</button>
+            <button class="btn btn-primary" type="submit">${icon('check')} 保存修改</button>
           </div>
         </form>` : `<div class="identity-required">
           <p>先选择你是哪一位，再写名字。</p>
@@ -5171,6 +5232,57 @@
       return;
     }
 
+    if (action === 'history-prev') {
+      ui.historyMonth = shiftMonthKey(ui.historyMonth || currentMonthKey(), -1);
+      render();
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      return;
+    }
+
+    if (action === 'history-next') {
+      const next = shiftMonthKey(ui.historyMonth || currentMonthKey(), 1);
+      if (next > currentMonthKey()) {
+        toast('已经是最新的月份啦');
+        return;
+      }
+      ui.historyMonth = next;
+      render();
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      return;
+    }
+
+    if (action === 'history-latest') {
+      ui.historyMonth = latestRecordedMonth();
+      render();
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      return;
+    }
+
+    if (action === 'edit-name') {
+      const display = $('#name-display');
+      const editor = $('#name-editor');
+      if (!display || !editor) return;
+      display.classList.add('hidden');
+      editor.classList.remove('hidden');
+      const input = $('#profile-me');
+      if (input) {
+        input.focus({ preventScroll: true });
+        input.select();
+      }
+      return;
+    }
+
+    if (action === 'cancel-name') {
+      const display = $('#name-display');
+      const editor = $('#name-editor');
+      if (!display || !editor) return;
+      editor.classList.add('hidden');
+      display.classList.remove('hidden');
+      const input = $('#profile-me');
+      if (input) input.value = sync.identity ? nameOf(sync.identity) : state.names.me;
+      return;
+    }
+
     if (action === 'switch-identity') {
       confirmSwitchIdentity();
       return;
@@ -5648,6 +5760,14 @@
   }
 
   function handleChange(event) {
+    if (event.target.id === 'history-month') {
+      const value = String(event.target.value || '');
+      if (/^\d{4}-\d{2}$/.test(value)) {
+        ui.historyMonth = value;
+        render();
+      }
+      return;
+    }
     if (event.target.classList && event.target.classList.contains('photo-input')) {
       handlePhoto(event.target);
       return;

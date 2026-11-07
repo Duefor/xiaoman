@@ -1,0 +1,107 @@
+name: Preview 小满
+
+# 手动触发，或往 preview 分支推代码时触发。
+# 只更新一个「预览版」Release（pre-release），不会发正式版，也不会触发 App 内的更新提示。
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - preview
+
+permissions:
+  contents: write
+
+concurrency:
+  group: preview-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;34.0.0 build-tools;35.0.0"
+          accept-android-sdk-licenses: true
+
+      - name: Restore signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p android-app/keystore
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android-app/keystore/xiaoman-release.jks
+
+      - name: Validate signing keystore
+        env:
+          XIAOMAN_STORE_PASSWORD: ${{ secrets.XIAOMAN_STORE_PASSWORD }}
+          XIAOMAN_KEY_ALIAS: ${{ secrets.XIAOMAN_KEY_ALIAS }}
+        run: |
+          test -s android-app/keystore/xiaoman-release.jks
+          STORE_PASS="${XIAOMAN_STORE_PASSWORD:-xiaoman2026}"
+          ALIAS="${XIAOMAN_KEY_ALIAS:-xiaoman}"
+          keytool -list -keystore android-app/keystore/xiaoman-release.jks -storepass "$STORE_PASS" -alias "$ALIAS"
+
+      - name: Install dependencies and sync web assets
+        working-directory: android-app
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec cap sync android
+
+      - name: Configure Android build
+        working-directory: android-app/android
+        run: |
+          test -n "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          echo "sdk.dir=${ANDROID_HOME:-$ANDROID_SDK_ROOT}" > local.properties
+          chmod +x gradlew
+
+      - name: Build preview APK
+        working-directory: android-app/android
+        env:
+          XIAOMAN_STORE_PASSWORD: ${{ secrets.XIAOMAN_STORE_PASSWORD }}
+          XIAOMAN_KEY_ALIAS: ${{ secrets.XIAOMAN_KEY_ALIAS }}
+          XIAOMAN_KEY_PASSWORD: ${{ secrets.XIAOMAN_KEY_PASSWORD }}
+        run: |
+          BASE_VERSION="$(node -e "console.log(JSON.parse(require('fs').readFileSync('../package.json','utf8')).version)")"
+          export XIAOMAN_VERSION_NAME="${BASE_VERSION}-preview"
+          export XIAOMAN_VERSION_CODE="$(node -e "const v=process.argv[1].split('.').map(Number);console.log(v[0]*10000+v[1]*100+v[2])" "$BASE_VERSION")"
+          echo "building preview $XIAOMAN_VERSION_NAME ($XIAOMAN_VERSION_CODE)"
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Publish preview asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp android-app/android/app/build/outputs/apk/release/app-release.apk xiaoman-preview.apk
+          if gh release view preview >/dev/null 2>&1; then
+            gh release edit preview \
+              --title "小满 预览版" \
+              --notes "这是测试包，不是正式版本。安装后可以覆盖正式版（同一签名、数据保留）。确认没问题后再发正式版。" \
+              --prerelease
+          else
+            gh release create preview \
+              --title "小满 预览版" \
+              --notes "这是测试包，不是正式版本。安装后可以覆盖正式版（同一签名、数据保留）。确认没问题后再发正式版。" \
+              --prerelease
+          fi
+          gh release upload preview xiaoman-preview.apk --clobber
+          echo "download: https://github.com/${GITHUB_REPOSITORY}/releases/download/preview/xiaoman-preview.apk"

@@ -46,7 +46,7 @@
 
 从本仓库的 **Releases** 页面下载最新的 `xiaoman-*.apk`，传到安卓手机安装。
 
-- v3.3.0、v3.2.0、v3.1、v3.0 使用同一个发布签名，**可以直接覆盖安装，数据保留**。
+- v3.3.1、v3.3.0、v3.2.0、v3.1、v3.0 使用同一个发布签名，**可以直接覆盖安装，数据保留**。
 - 更早的 v2.0 是 debug 签名，不能覆盖，需要先同步/导出，再卸载旧版安装。
 - 第一次安装如果提示「未知来源」，允许当前文件管理器安装即可。
 
@@ -54,6 +54,26 @@
 > 3.3 起照片不再写进 `shared.json`，旧版读不到新的照片字段；如果一台还停在 3.2，它保存时可能把对方的照片引用冲掉。
 
 更细的安卓说明在 [android-app/README.md](android-app/README.md)。
+
+## 先试用，再发版（预览版）
+
+正式发版前，可以先装一个测试包，用几天确认没 Bug 再打 tag：
+
+1. 把代码推到 `preview` 分支，或在 GitHub Actions 里手动运行「Preview 小满」。
+2. 等一两分钟，同一个下载地址会更新：
+
+   ```text
+   https://github.com/Duefor/xiaoman/releases/download/preview/xiaoman-preview.apk
+   ```
+
+3. 手机上直接下载覆盖安装。测试包和正式版用**同一个签名**，数据保留。
+4. 确认没问题后，再打 `v3.3.1` 这样的 tag 正式发布。
+
+预览版是 pre-release：
+
+- 不会出现在「最新版本」里，App 的「检查更新」也不会提示
+- 每次构建覆盖同一个 APK，链接不变，方便手机浏览器收藏
+- 版本号形如 `3.3.1-preview`，versionCode 和即将发布的正式版一致，正式版可以直接覆盖
 
 ## 第一次使用
 
@@ -155,7 +175,7 @@ xiaoman/
 - Android 普通 App **不能静默安装**，最后一定会弹系统安装确认；点一下确认即可。
 - 第一次使用会跳「安装未知应用」权限，允许后回来再点一次安装。
 - 更新必须使用同一个签名文件；当前签名在 `android-app/keystore/xiaoman-release.jks`，不要丢。
-- `versionCode` 必须递增；仓库的 tag 使用 `v3.3.0` 这种格式，Actions 会自动算。
+- `versionCode` 必须递增；仓库的 tag 使用 `v3.3.1` 这种格式，Actions 会自动算。
 
 ### 在中国大陆使用 GitHub
 
@@ -207,8 +227,8 @@ PowerShell 生成 base64：
 ### 3. 发布一个版本
 
 ```bash
-git tag v3.3.0
-git push origin v3.3.0
+git tag v3.3.1
+git push origin v3.3.1
 ```
 
 GitHub Actions 会：
@@ -216,7 +236,7 @@ GitHub Actions 会：
 1. 安装依赖
 2. 同步 Capacitor 资源
 3. 用 Secrets 里的 keystore 签名
-4. 生成 `xiaoman-v3.3.0.apk`
+4. 生成 `xiaoman-v3.3.1.apk`
 5. 生成 `latest.json`（包含版本号、APK 地址、SHA-256）
 6. 创建 GitHub Release
 

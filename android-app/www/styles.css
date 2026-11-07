@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    小满 · 两个人的小小宇宙
    A warm, local-first couple space. Hand-written CSS, no dependencies.
    ========================================================================== */
@@ -3689,7 +3689,7 @@ h1, h2, h3, h4, p {
   display: flex;
   align-items: flex-start;
   gap: 7px;
-  margin: -4px 0 14px;
+  margin: 6px 0 0;
   color: var(--muted-2);
   font-size: 9px;
   line-height: 1.6;
@@ -5601,3 +5601,377 @@ h1, h2, h3, h4, p {
 .settings-nav button:focus:not(:focus-visible) {
   outline: none;
 }
+
+/* ==========================================================================
+   v3.3.1 · 小岛隔离 / 历史月份 / 改名交互
+   ========================================================================== */
+
+/* 小岛模式下不再显示共享空间的导航与恋爱天数卡片 */
+body.island-mode .nav,
+body.island-mode .bottom-nav,
+body.island-mode .side-card,
+body.island-mode .sidebar-foot,
+body.island-mode .fab {
+  display: none !important;
+}
+
+body.island-mode .sidebar {
+  padding-bottom: 28px;
+}
+
+/* ---- 小岛：返回 + 头部 ---- */
+
+.island-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 5px 12px 5px 9px;
+  color: #6d5a86;
+  background: #f3edf8;
+  border: 1px solid rgba(130, 100, 150, .22);
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .18s var(--ease), background .18s;
+}
+
+.island-back:hover {
+  background: #ece2f5;
+  transform: translateX(-2px);
+}
+
+.island-back .icon {
+  width: 13px;
+  height: 13px;
+  transform: rotate(180deg);
+}
+
+.island-head .page-sub {
+  max-width: 520px;
+}
+
+/* ---- 小岛：hero ---- */
+
+@media (min-width: 681px) {
+  .island-hero {
+    max-width: 720px;
+  }
+}
+
+.island-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 24px 22px 22px;
+  background:
+    radial-gradient(90% 120% at 100% 0%, rgba(255, 255, 255, .7), transparent 55%),
+    linear-gradient(135deg, #f7f0fa 0%, #eee4f3 100%);
+  border: 1px solid #e6d9ee;
+  border-radius: 26px;
+  box-shadow: var(--shadow);
+}
+
+.island-hero::before {
+  content: "";
+  position: absolute;
+  right: -58px;
+  top: -66px;
+  width: 180px;
+  height: 180px;
+  border: 1px dashed rgba(130, 100, 150, .2);
+  border-radius: 50%;
+}
+
+.island-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.island-top .avatar {
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  font-size: 15px;
+}
+
+.island-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.island-copy strong,
+.island-copy small {
+  display: block;
+}
+
+.island-copy strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.island-copy small {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.island-top .btn {
+  flex: none;
+}
+
+.island-stats-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0 18px;
+}
+
+.island-stats-grid > div {
+  min-width: 0;
+  padding: 9px 11px;
+  background: rgba(255, 255, 255, .62);
+  border: 1px solid rgba(255, 255, 255, .85);
+  border-radius: 13px;
+}
+
+.island-stats-grid strong {
+  display: block;
+  overflow: hidden;
+  color: #5f4c78;
+  font-family: var(--mono-num);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.island-stats-grid span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.island-actions {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.island-actions .btn {
+  justify-content: center;
+}
+
+.island-hero .btn-primary {
+  background: #8a76a8;
+  box-shadow: 0 12px 24px -14px rgba(110, 80, 145, .8);
+}
+
+.island-hero .btn-primary:hover {
+  background: #7a6599;
+}
+
+/* ---- 小岛：筛选与空状态 ---- */
+
+.island-filters {
+  margin-top: 16px;
+}
+
+.island-empty .empty {
+  padding: 34px 20px;
+}
+
+body.island-mode .toast {
+  background: #5f4c78;
+}
+
+/* ---- 历史记录：月份选择 ---- */
+
+.month-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 7px 9px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.month-step {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  color: var(--ink-soft);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background .18s, transform .18s;
+}
+
+.month-step:hover {
+  background: var(--accent-wash);
+  transform: translateY(-1px);
+}
+
+.month-step .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.month-step.prev .icon {
+  transform: rotate(180deg);
+}
+
+.month-pick {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.month-pick input {
+  width: 100%;
+  max-width: 190px;
+  padding: 5px 4px;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-align: center;
+  cursor: pointer;
+}
+
+.month-pick input:focus {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.month-total {
+  flex: none;
+  padding-right: 4px;
+  color: var(--muted);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+.month-jump {
+  display: flex;
+  justify-content: center;
+  margin: -4px 0 16px;
+}
+
+.month-jump button {
+  padding: 5px 11px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+.month-jump button:hover {
+  color: var(--accent-deep);
+  border-color: var(--accent-soft);
+}
+
+/* ---- 设置：名字只读 + 更改名字 ---- */
+
+.name-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  padding: 9px 12px;
+  background: var(--surface-2);
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+}
+
+.name-display strong {
+  overflow: hidden;
+  font-family: var(--serif);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name-display .btn {
+  flex: none;
+}
+
+.name-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.name-editor.hidden {
+  display: none;
+}
+
+.name-editor .input {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 680px) {
+  .island-hero {
+    padding: 20px 17px 18px;
+    border-radius: 22px;
+  }
+
+  .island-top .avatar {
+    width: 38px;
+    height: 38px;
+    font-size: 13px;
+  }
+
+  .island-stats-grid {
+    gap: 6px;
+    margin: 14px 0 16px;
+  }
+
+  .island-stats-grid > div {
+    padding: 8px 9px;
+  }
+
+  .island-stats-grid strong {
+    font-size: 14px;
+  }
+
+  .month-pick input {
+    font-size: 16px;
+  }
+
+  .month-total {
+    display: none;
+  }
+}
+

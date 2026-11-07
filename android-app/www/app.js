@@ -11,8 +11,8 @@
   const SYNC_KEY = 'xiaoman.sync.v1';
   const UPDATE_KEY = 'xiaoman.update.v1';
   const NOTIFY_KEY = 'xiaoman.notify.v1';
-  const APP_VERSION_NAME = '3.3.1';
-  const APP_VERSION_CODE = 30301;
+  const APP_VERSION_NAME = '3.4.0';
+  const APP_VERSION_CODE = 30400;
   const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
   const UPDATE_REPO_PLACEHOLDER = 'Duefor/xiaoman';
   const SCHEMA_VERSION = 5;
@@ -43,6 +43,14 @@
     tired: { label: '有点累', emoji: '😮‍💨', color: '#91b3ad' },
     calm: { label: '平静', emoji: '🌿', color: '#93ad83' },
   };
+
+  const REACTIONS = {
+    hug: { emoji: '🤗', label: '抱抱' },
+    miss: { emoji: '🥺', label: '想你' },
+    laugh: { emoji: '😂', label: '笑了' },
+  };
+
+  const READ_KEY = 'xiaoman.read.v1';
 
   const RECIPE_EMOJIS = ['🍳', '🍅', '🍜', '🍤', '🍡', '🍗', '🍄', '🥟', '🍚', '🥗', '🍰', '🍲'];
   const WISH_EMOJIS = ['🍲', '🍜', '🍣', '🍕', '🍰', '🧋', '🍢', '🥟', '🍦', '🍓', '🍗', '🥘'];
@@ -106,6 +114,7 @@
   let lastFocused = null;
   let confirmCallback = null;
   let toastTimer = null;
+  const read = { momentsAt: '', wishesAt: '', nudgesAt: '' };
 
   /* ------------------------------------------------------------------------
      Utilities
@@ -535,6 +544,7 @@
         me: { moments: [], tombstones: {}, updatedAt: '1970-01-01T00:00:00.000Z' },
         partner: { moments: [], tombstones: {}, updatedAt: '1970-01-01T00:00:00.000Z' },
       },
+      nudges: [],
     };
     const now = isoNow();
     seeded.moments.forEach((item, index) => {
@@ -620,6 +630,15 @@
     return seeded;
   }
 
+  function normalizeReactions(raw) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const result = {};
+    for (const role of ['me', 'partner']) {
+      if (REACTIONS[source[role]]) result[role] = source[role];
+    }
+    return result;
+  }
+
   function normalizeMoment(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const text = String(raw.text || '').slice(0, 800);
@@ -636,6 +655,7 @@
       photo,
       foodEmoji: String(raw.foodEmoji || raw.emoji || '🍲').slice(0, 8),
       wishStatus: raw.wishStatus === 'planned' ? 'planned' : 'wanted',
+      reactions: normalizeReactions(raw.reactions),
       updatedAt: isoOr(raw.updatedAt, isoOr(raw.date, isoNow())),
     };
   }
@@ -734,6 +754,17 @@
     };
   }
 
+  function normalizeNudge(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const at = new Date(raw.at || raw.createdAt);
+    if (Number.isNaN(at.getTime())) return null;
+    return {
+      id: String(raw.id || uid()),
+      from: raw.from === 'partner' ? 'partner' : 'me',
+      at: at.toISOString(),
+    };
+  }
+
   function normalizeAnniversary(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const title = String(raw.title || '').trim().slice(0, 40);
@@ -825,6 +856,7 @@
         me: normalizePersonal(src.personal && src.personal.me),
         partner: normalizePersonal(src.personal && src.personal.partner),
       },
+      nudges: Array.isArray(src.nudges) ? src.nudges.map(normalizeNudge).filter(Boolean).slice(0, 60) : [],
       tombstones: normalizeTombstones(src.tombstones),
       updatedAt: isoOr(src.updatedAt, isoNow()),
     };
@@ -1152,6 +1184,11 @@
       dishes: mergeCollection(local.wishes.dishes, remote.wishes.dishes, tombstones.dishes),
       places: mergeCollection(local.wishes.places, remote.wishes.places, tombstones.places),
     };
+    const nudgeMap = new Map();
+    [...local.nudges, ...remote.nudges].forEach((nudge) => nudgeMap.set(nudge.id, nudge));
+    merged.nudges = [...nudgeMap.values()]
+      .sort((a, b) => new Date(b.at) - new Date(a.at))
+      .slice(0, 60);
 
     for (const role of ['me', 'partner']) {
       if (new Date(remote.namesUpdatedAt[role]) > new Date(local.namesUpdatedAt[role])) {
@@ -1226,6 +1263,7 @@
         moments: state.moments,
         wishes: state.wishes,
         anniversaries: state.anniversaries,
+        nudges: state.nudges,
         tombstones: state.tombstones,
         updatedAt: state.updatedAt,
       },
@@ -1377,6 +1415,7 @@
       saveSync();
       updateSyncUI();
       syncNotifyConfig();
+      syncReminderConfig();
       maybeAskNotifyPermission();
       if (!options.silent) {
         toast(sync.identity ? '同步完成，共享空间和小岛都合在一起了' : '共享空间已同步；选择身份后才会同步小岛');
@@ -1532,6 +1571,22 @@
     openSettings('sync');
   }
 
+  function syncHealthHTML() {
+    const configured = isSyncConfigured();
+    const pending = photoQueue().length;
+    const status = syncing
+      ? '正在同步'
+      : (sync.lastError ? '同步异常' : (configured ? (sync.lastSyncAt ? '正常' : '等待第一次同步') : '未开启'));
+    const tone = sync.lastError ? 'is-bad' : (configured && sync.lastSyncAt ? 'is-good' : '');
+    return `<div class="sync-health ${tone}">
+      <div class="health-item"><span>同步状态</span><strong>${esc(status)}</strong></div>
+      <div class="health-item"><span>上次同步</span><strong>${esc(sync.lastSyncAt ? formatSyncTime(sync.lastSyncAt) : '还没同步过')}</strong></div>
+      <div class="health-item ${pending ? 'is-warn' : ''}"><span>待上传照片</span><strong>${pending} 张</strong></div>
+      <div class="health-item"><span>云端文件夹</span><strong>${esc(sync.folder || '未填写')}</strong></div>
+    </div>
+    ${sync.lastError ? `<p class="sync-error-note">${icon('cloud')} ${esc(sync.lastError)}</p>` : ''}`;
+  }
+
   function syncSettingsPanelHTML() {
     const config = sync || defaultSync();
     const native = isNativeApp();
@@ -1552,6 +1607,7 @@
         </div>
         <button class="btn btn-ghost btn-sm" type="button" data-action="switch-identity">${sync && sync.identity ? '切换' : '选择'}</button>
       </div>
+      ${syncHealthHTML()}
       <form id="sync-form">
         <div class="form-grid">
           <div class="field span-2">
@@ -2023,7 +2079,7 @@
   let notify = null;
 
   function defaultNotify() {
-    return { enabled: true, interval: 30, quietStart: '23:00', quietEnd: '08:00', prompted: false };
+    return { enabled: true, interval: 30, quietStart: '23:00', quietEnd: '08:00', prompted: false, reminders: true };
   }
 
   function loadNotify() {
@@ -2038,6 +2094,7 @@
         ...saved,
         enabled: legacy ? true : Boolean(saved.enabled),
         prompted: legacy ? false : Boolean(saved.prompted),
+        reminders: saved.reminders === undefined ? true : Boolean(saved.reminders),
         interval: NOTIFY_INTERVALS.includes(Number(saved.interval)) ? Number(saved.interval) : 30,
       };
     } catch (error) {
@@ -2052,6 +2109,7 @@
       // notifications settings are best effort
     }
     syncNotifyConfig();
+    syncReminderConfig();
   }
 
   function notifyPlugin() {
@@ -2080,6 +2138,25 @@
       });
     } catch (error) {
       // Native scheduling is best effort.
+    }
+  }
+
+  async function syncReminderConfig() {
+    if (!isNativeApp()) return;
+    const plugin = notifyPlugin();
+    if (!plugin || typeof plugin.configureReminders !== 'function' || !notify) return;
+    const items = state.anniversaries.map((item) => ({
+      title: item.title,
+      date: item.date,
+      recurring: Boolean(item.recurring),
+    }));
+    try {
+      await plugin.configureReminders({
+        enabled: Boolean(notify.enabled && notify.reminders !== false),
+        items,
+      });
+    } catch (error) {
+      // 提醒调度是尽力而为
     }
   }
 
@@ -2164,6 +2241,10 @@
           <input type="checkbox" id="notify-enabled" ${config.enabled ? 'checked' : ''}>
           <span>有新动态时通知我</span>
         </label>
+        <label class="check-row" style="margin-top:8px">
+          <input type="checkbox" id="notify-reminders" ${config.reminders !== false ? 'checked' : ''}>
+          <span>纪念日提前提醒（7 / 3 / 1 天和当天早上）</span>
+        </label>
         <div class="form-grid" style="margin-top:14px">
           <div class="field">
             <label for="notify-interval">后台检查间隔</label>
@@ -2191,12 +2272,14 @@
         </div>
       </form>
       <p class="sync-note">没有服务器，所以是「定期去坚果云看一眼」：最快 15 分钟一次，系统省电时可能更晚。只在发现 TA 的新内容时提醒。</p>
+      <p class="sync-note">纪念日提醒会在每天早 9 点检查一次，提前 7 / 3 / 1 天和当天提醒；关掉上面的通知总开关，提醒也会一起停。</p>
       <p class="sync-note">先在同步设置里填好坚果云，通知才有内容可看。</p>
     </section>`;
   }
 
   function saveNotifyForm(form) {
     notify.enabled = Boolean(form.querySelector('#notify-enabled').checked);
+    notify.reminders = Boolean(form.querySelector('#notify-reminders').checked);
     const interval = Number(form.querySelector('#notify-interval').value);
     notify.interval = NOTIFY_INTERVALS.includes(interval) ? interval : 30;
     notify.quietStart = String(form.querySelector('#notify-quiet-start').value || '23:00');
@@ -2426,6 +2509,65 @@
     }
   }
 
+  function loadRead() {
+    try {
+      const raw = window.localStorage.getItem(READ_KEY);
+      if (!raw) {
+        const now = isoNow();
+        read.momentsAt = now;
+        read.wishesAt = now;
+        read.nudgesAt = now;
+        saveRead();
+        return;
+      }
+      const saved = JSON.parse(raw);
+      read.momentsAt = isoOr(saved.momentsAt, '1970-01-01T00:00:00.000Z');
+      read.wishesAt = isoOr(saved.wishesAt, '1970-01-01T00:00:00.000Z');
+      read.nudgesAt = isoOr(saved.nudgesAt, '1970-01-01T00:00:00.000Z');
+    } catch (error) {
+      // keep defaults
+    }
+  }
+
+  function saveRead() {
+    try {
+      window.localStorage.setItem(READ_KEY, JSON.stringify(read));
+    } catch (error) {
+      // read markers are best effort
+    }
+  }
+
+  function markRead(section) {
+    if (!['moments', 'wishes', 'nudges'].includes(section)) return;
+    read[`${section}At`] = isoNow();
+    saveRead();
+  }
+
+  function unreadState() {
+    const me = sync.identity || 'me';
+    const other = me === 'me' ? 'partner' : 'me';
+    const since = (value) => new Date(value || '1970-01-01T00:00:00.000Z').getTime();
+    const momentsAt = since(read.momentsAt);
+    const wishesAt = since(read.wishesAt);
+    const nudgesAt = since(read.nudgesAt);
+    const moments = state.moments.some((moment) => moment.author !== me
+      && since(moment.updatedAt || moment.date) > momentsAt);
+    const dishes = state.wishes.dishes.some((dish) => (dish.wantedBy || []).includes(other)
+      && since(dish.updatedAt) > wishesAt);
+    const places = state.wishes.places.some((place) => (place.wantedBy || []).includes(other)
+      && since(place.updatedAt) > wishesAt);
+    const nudges = state.nudges.some((nudge) => nudge.from !== me && since(nudge.at) > nudgesAt);
+    return { moments, wishes: dishes || places, nudges };
+  }
+
+  function updateBadges() {
+    if (!state) return;
+    const unread = unreadState();
+    $$('[data-nav="moments"]').forEach((link) => link.classList.toggle('has-unread', unread.moments));
+    $$('[data-nav="wishes"]').forEach((link) => link.classList.toggle('has-unread', unread.wishes));
+    $$('[data-nav="home"]').forEach((link) => link.classList.toggle('has-unread', unread.nudges));
+  }
+
   function saveUiPrefs() {
     try {
       window.localStorage.setItem(UI_KEY, JSON.stringify({ motion: ui.motion }));
@@ -2549,7 +2691,7 @@
   function getRoute() {
     const hash = String(window.location.hash || '').replace(/^#\/?/, '').split('?')[0];
     if (hash === 'recipes') return 'wishes';
-    return ['home', 'moments', 'wishes', 'days', 'me', 'history'].includes(hash) ? hash : 'home';
+    return ['home', 'moments', 'wishes', 'days', 'me', 'history', 'album'].includes(hash) ? hash : 'home';
   }
 
   function updateTitle(route) {
@@ -2560,6 +2702,7 @@
       wishes: '想吃 · 小满',
       days: '纪念日 · 小满',
       me: '我的小岛 · 小满',
+      album: '我们的相册 · 小满',
     };
     document.title = titles[route] || titles.home;
   }
@@ -2577,6 +2720,9 @@
     updateSpaceToggle();
     document.body.classList.toggle('island-mode', route === 'me');
     setActiveNav(route);
+    if (route === 'moments') markRead('moments');
+    if (route === 'wishes') markRead('wishes');
+    updateBadges();
     updateFab(route);
     updateTitle(route);
 
@@ -2587,6 +2733,7 @@
       wishes: wishesView,
       days: daysView,
       me: meView,
+      album: albumView,
     };
 
     const view = $('#view');
@@ -2747,6 +2894,135 @@
     return `<img class="${className} photo-pending" data-photo-id="${esc(photo.id)}" alt="${esc(alt)}">`;
   }
 
+  function reactionRow(moment) {
+    const me = sync.identity || 'me';
+    const other = me === 'me' ? 'partner' : 'me';
+    const reactions = moment.reactions || {};
+    const mine = reactions[me];
+    const theirs = reactions[other];
+    return `<div class="reaction-row">
+      ${Object.entries(REACTIONS).map(([key, item]) => `<button class="reaction-btn ${mine === key ? 'active' : ''}" type="button" data-action="react-moment" data-id="${esc(moment.id)}" data-react="${key}" aria-label="${item.label}" aria-pressed="${mine === key}">
+        <span>${item.emoji}</span><small>${item.label}</small>
+      </button>`).join('')}
+      ${theirs ? `<span class="reaction-partner" title="${esc(nameOf(other))} 回应了">${avatarFor(other, 'tiny')} ${REACTIONS[theirs].emoji}</span>` : ''}
+    </div>`;
+  }
+
+  function latestPartnerNudge() {
+    const me = sync.identity || 'me';
+    const since = new Date(read.nudgesAt || '1970-01-01T00:00:00.000Z').getTime();
+    return state.nudges
+      .filter((nudge) => nudge.from !== me && new Date(nudge.at).getTime() > since)
+      .sort((a, b) => new Date(b.at) - new Date(a.at))[0] || null;
+  }
+
+  function nudgeBanner() {
+    const nudge = latestPartnerNudge();
+    if (!nudge) return '';
+    return `<div class="nudge-banner">
+      <span class="nudge-heart">💗</span>
+      <div class="nudge-copy">
+        <strong>${esc(nameOf(nudge.from))} 想你了一下</strong>
+        <small>${esc(fmtMomentTime(nudge.at))}</small>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" data-action="reply-nudge">回一个</button>
+      <button class="icon-btn" type="button" data-action="dismiss-nudge" aria-label="知道了">${icon('close')}</button>
+    </div>`;
+  }
+
+  function nudgeBar() {
+    return `<div class="nudge-bar">
+      <button class="nudge-send" type="button" data-action="send-nudge">💗 想你一下</button>
+      <span>不用等回复，TA 下次同步会看到</span>
+    </div>`;
+  }
+
+  function onThisDayMoments() {
+    const today = new Date();
+    return sortedMoments().filter((moment) => {
+      const date = new Date(moment.date);
+      return !Number.isNaN(date.getTime())
+        && date.getFullYear() < today.getFullYear()
+        && date.getMonth() === today.getMonth()
+        && date.getDate() === today.getDate();
+    }).slice(0, 2);
+  }
+
+  function onThisDaySection() {
+    const items = onThisDayMoments();
+    if (!items.length) return '';
+    return `<section class="onthisday rise">
+      <div class="onthisday-head">${icon('sparkles')} 那年今天 <span>${items.length} 条回忆</span></div>
+      ${items.map((moment) => `<button class="onthisday-card" type="button" data-action="open-memory" data-id="${esc(moment.id)}">
+        ${photoImg(moment.photo, 'onthisday-photo', '那年的照片')}
+        <span class="onthisday-copy">
+          <small>${new Date(moment.date).getFullYear()} 年 · ${esc(nameOf(moment.author))}</small>
+          <strong>${esc(moment.text || '一张照片')}</strong>
+        </span>
+        ${icon('chevron')}
+      </button>`).join('')}
+    </section>`;
+  }
+
+  function albumMonthLabel(key) {
+    if (key === 'unknown') return '更早';
+    const parts = String(key).split('-');
+    return `${parts[0]}年${Number(parts[1])}月`;
+  }
+
+  function albumView() {
+    const items = sortedMoments().filter((moment) => Boolean(normalizePhoto(moment.photo)));
+    const groups = new Map();
+    items.forEach((moment) => {
+      const date = new Date(moment.date);
+      const key = Number.isNaN(date.getTime()) ? 'unknown' : `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(moment);
+    });
+    return `<header class="page-head">
+      <div>
+        <p class="eyebrow">OUR PHOTO ALBUM</p>
+        <h1 class="page-title">我们的相册</h1>
+        <p class="page-sub">${items.length ? `${items.length} 张照片，按月份收好。` : '记录时加一张照片，就会出现在这里。'}</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-ghost" type="button" data-action="go" data-route="home">${icon('home')}<span class="btn-label">回首页</span></button>
+        <button class="btn btn-primary" type="button" data-action="add-moment">${icon('plus')}<span class="btn-label">加一张</span></button>
+      </div>
+    </header>
+    ${items.length
+      ? [...groups.entries()].map(([key, list]) => `<section class="album-group">
+          <h3 class="album-month">${albumMonthLabel(key)} <small>${list.length} 张</small></h3>
+          <div class="album-grid">
+            ${list.map((moment) => `<button class="album-item" type="button" data-action="open-memory" data-id="${esc(moment.id)}" aria-label="查看照片">
+              ${photoImg(moment.photo, 'album-photo', '照片')}
+              <span class="album-date">${new Date(moment.date).getDate()} 日</span>
+            </button>`).join('')}
+          </div>
+        </section>`).join('')
+      : emptyState('📷', '相册还是空的', '记录小事时加一张照片，就会自动收进这里。', `<button class="btn btn-primary btn-sm" data-action="add-moment">${icon('plus')} 加一张</button>`)}
+    `;
+  }
+
+  function openMemory(id) {
+    const moment = state.moments.find((item) => item.id === id);
+    if (!moment) return;
+    const date = new Date(moment.date);
+    const label = Number.isNaN(date.getTime())
+      ? '一条回忆'
+      : `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日`;
+    openModal({
+      eyebrow: 'MEMORY',
+      title: label,
+      subtitle: `${nameOf(moment.author)} 留下的${moment.photo ? '照片' : '一句话'}`,
+      body: `${moment.photo ? `<div class="photo-viewer">${photoImg(moment.photo, 'photo-viewer-img', '照片')}</div>` : ''}
+        ${moment.text ? `<p class="photo-viewer-text">${esc(moment.text)}</p>` : ''}
+        <div class="photo-viewer-foot">${moodChip(moment)}</div>`,
+      wide: true,
+    });
+    hydratePhotos();
+  }
+
   function homeView() {
     const days = daysTogether();
     const next = nextUpcomingAnniversary();
@@ -2758,6 +3034,7 @@
     const greetingName = sync.identity ? nameOf(sync.identity) : state.names.me;
     const dishCount = state.wishes.dishes.length;
     const placeCount = state.wishes.places.length;
+    const photoCount = state.moments.filter((moment) => Boolean(normalizePhoto(moment.photo))).length;
 
     return `<header class="page-head home-head">
       <div>
@@ -2782,15 +3059,19 @@
         <div class="hero-chips">
           <a href="#moments">日常 <strong>${state.moments.length}</strong></a>
           <a href="#wishes">想吃 <strong>${dishCount + placeCount}</strong></a>
+          <a href="#album">相册 <strong>${photoCount}</strong></a>
           <a href="#days">纪念日 <strong>${state.anniversaries.length}</strong></a>
         </div>
       </div>
       <div class="hero-art" aria-hidden="true">${heroArt()}<span class="art-note">${esc(dailyItem(ART_NOTES))}</span></div>
       ${heroNext(next)}
     </section>
+    ${nudgeBanner()}
+    ${nudgeBar()}
+    ${onThisDaySection()}
     <div class="home-grid">
       <section class="panel rise" style="--d:1">
-        ${sectionHead('最近的小事', `<button class="text-link" type="button" data-action="go" data-route="moments">全部 ${icon('chevron')}</button>`)}
+        ${sectionHead('最近的小事', `<div class="section-links"><button class="text-link" type="button" data-action="go" data-route="album">${icon('image')} 相册</button><button class="text-link" type="button" data-action="go" data-route="moments">全部 ${icon('chevron')}</button></div>`)}
         ${latest.length ? latest.map(miniMoment).join('') : emptyState('🌱', '最近三天还没有新记录', '写下一件小事，或者去历史里翻翻以前的日子。', `<button class="btn btn-soft btn-sm" data-action="add-moment">${icon('plus')} 写一条</button>`)}
         <div style="display:flex;gap:7px;margin-top:14px">
           <button class="btn btn-soft" type="button" data-action="add-moment" style="flex:1">${icon('plus')} 写一条日常</button>
@@ -2866,6 +3147,7 @@
       <p class="moment-text">${esc(moment.text)}</p>
       ${photoImg(moment.photo, 'moment-photo', '日常照片')}
       <div class="moment-foot">${moodChip(moment)}</div>
+      ${reactionRow(moment)}
     </article>`;
   }
 
@@ -2985,6 +3267,7 @@
         <p class="page-sub">只留下最近三天的热闹；更早的日子，去历史里慢慢翻。</p>
       </div>
       <div class="head-actions">
+        <button class="btn btn-ghost" type="button" data-action="go" data-route="album">${icon('image')}<span class="btn-label">相册</span></button>
         <button class="btn btn-ghost" type="button" data-action="go" data-route="history">${icon('clock')}<span class="btn-label">历史记录</span></button>
         <button class="btn btn-primary" type="button" data-action="add-moment">${icon('plus')}<span class="btn-label">记录一件小事</span></button>
       </div>
@@ -4922,6 +5205,7 @@
     if (existing) Object.assign(existing, next);
     else state.anniversaries.push(next);
     if (!saveState()) return;
+    syncReminderConfig();
     closeModal();
     render();
     toast(existing ? '这个日子改好啦' : '记下啦，到时候一起过');
@@ -5055,6 +5339,7 @@
             }
           }
           await migrateInlinePhotos();
+          syncReminderConfig();
           render();
           toast('导入成功，你们的小世界回来啦');
         },
@@ -5163,6 +5448,7 @@
         addTombstone('anniversaries', id);
         state.anniversaries = state.anniversaries.filter((item) => item.id !== id);
         saveState();
+        syncReminderConfig();
         render();
         toast('纪念日已经删掉了');
       },
@@ -5172,6 +5458,39 @@
   /* ------------------------------------------------------------------------
      Actions
      ------------------------------------------------------------------------ */
+
+  function reactMoment(id, key) {
+    if (!REACTIONS[key]) return;
+    const me = sync.identity || 'me';
+    const moment = state.moments.find((item) => item.id === id);
+    if (!moment) return;
+    const reactions = { ...(moment.reactions || {}) };
+    if (reactions[me] === key) delete reactions[me];
+    else reactions[me] = key;
+    moment.reactions = reactions;
+    moment.updatedAt = isoNow();
+    if (!saveState()) return;
+    render();
+    toast(reactions[me] ? `回应了「${REACTIONS[key].label}」` : '取消回应');
+  }
+
+  function sendNudge() {
+    if (!sync.identity) {
+      openIdentityModal();
+      return;
+    }
+    const recent = state.nudges.some((nudge) => nudge.from === sync.identity
+      && Date.now() - new Date(nudge.at).getTime() < 10 * 60 * 1000);
+    if (recent) {
+      toast('刚刚已经想过了，等 TA 看到吧');
+      return;
+    }
+    state.nudges = [{ id: uid(), from: sync.identity, at: isoNow() }, ...state.nudges].slice(0, 60);
+    if (!saveState()) return;
+    markRead('nudges');
+    render();
+    toast('想你一下，放进口袋了；TA 下次同步会看到');
+  }
 
   function planWish(id) {
     const wish = state.moments.find((item) => item.id === id && item.kind === 'wish');
@@ -5513,6 +5832,33 @@
       return;
     }
 
+    if (action === 'react-moment') {
+      reactMoment(actionElement.dataset.id, actionElement.dataset.react);
+      return;
+    }
+
+    if (action === 'send-nudge') {
+      sendNudge();
+      return;
+    }
+
+    if (action === 'reply-nudge') {
+      markRead('nudges');
+      sendNudge();
+      return;
+    }
+
+    if (action === 'dismiss-nudge') {
+      markRead('nudges');
+      render();
+      return;
+    }
+
+    if (action === 'open-memory') {
+      openMemory(actionElement.dataset.id);
+      return;
+    }
+
     if (action === 'add-personal-note') {
       openMomentModal(null, '', { space: 'personal', kind: 'note' });
       return;
@@ -5738,6 +6084,7 @@
           try { window.localStorage.removeItem(STORAGE_KEY); } catch (error) { /* noop */ }
           state = seedState();
           saveState();
+          syncReminderConfig();
           applyTheme();
           render();
           toast('已经恢复成示例数据');
@@ -5971,6 +6318,7 @@
     saveSync();
     saveState({ skipSync: true });
     loadUiPrefs();
+    loadRead();
     applyMotion();
     applyTheme();
     if (!window.location.hash) {
@@ -5995,6 +6343,7 @@
     updateSyncUI();
     updateUpdateUI();
     syncNotifyConfig();
+    syncReminderConfig();
     consumeLaunchRoute();
     refreshCurrentVersion();
     if (!sync.identity) {

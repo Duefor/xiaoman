@@ -72,7 +72,8 @@ public class XiaomanSyncWorker extends Worker {
             if (updatedAt.isEmpty() || updatedAt.equals(baseline)) return Result.success();
 
             String body = buildBody(data);
-            XiaomanNotifyPlugin.show(context, "小满 · 有新动静", body, "moments");
+            String route = body.contains("想你了一下") ? "home" : "moments";
+            XiaomanNotifyPlugin.show(context, "小满 · 有新动静", body, route);
             prefs.edit().putString("baseline", updatedAt).apply();
             return Result.success();
         } catch (Exception error) {
@@ -87,8 +88,8 @@ public class XiaomanSyncWorker extends Worker {
         try {
             JSONObject names = data.optJSONObject("names");
             JSONArray moments = data.optJSONArray("moments");
+            JSONObject newest = null;
             if (moments != null && moments.length() > 0) {
-                JSONObject newest = null;
                 for (int index = 0; index < moments.length(); index += 1) {
                     JSONObject item = moments.optJSONObject(index);
                     if (item == null) continue;
@@ -96,14 +97,38 @@ public class XiaomanSyncWorker extends Worker {
                         newest = item;
                     }
                 }
-                if (newest != null) {
-                    String text = newest.optString("text", "").trim();
-                    String author = newest.optString("author", "me");
-                    String who = names == null ? "" : names.optString(author, "");
-                    if (text.length() > 40) text = text.substring(0, 40) + "…";
-                    if (!text.isEmpty()) {
-                        return (who.isEmpty() ? "TA" : who) + "：" + text;
+            }
+
+            JSONArray nudges = data.optJSONArray("nudges");
+            String newestNudgeAt = "";
+            String newestNudgeFrom = "me";
+            if (nudges != null) {
+                for (int index = 0; index < nudges.length(); index += 1) {
+                    JSONObject item = nudges.optJSONObject(index);
+                    if (item == null) continue;
+                    String at = item.optString("at", "");
+                    if (at.compareTo(newestNudgeAt) > 0) {
+                        newestNudgeAt = at;
+                        newestNudgeFrom = item.optString("from", "me");
                     }
+                }
+            }
+
+            String newestMomentAt = newest == null
+                ? ""
+                : newest.optString("updatedAt", newest.optString("date", ""));
+            if (!newestNudgeAt.isEmpty() && newestNudgeAt.compareTo(newestMomentAt) > 0) {
+                String who = names == null ? "" : names.optString(newestNudgeFrom, "");
+                return (who.isEmpty() ? "TA" : who) + " 想你了一下，点开回一个。";
+            }
+
+            if (newest != null) {
+                String text = newest.optString("text", "").trim();
+                String author = newest.optString("author", "me");
+                String who = names == null ? "" : names.optString(author, "");
+                if (text.length() > 40) text = text.substring(0, 40) + "…";
+                if (!text.isEmpty()) {
+                    return (who.isEmpty() ? "TA" : who) + "：" + text;
                 }
             }
         } catch (Exception ignored) {

@@ -6089,3 +6089,454 @@ body.island-mode .toast {
     padding: 7px 11px;
   }
 }
+
+/* ==========================================================================
+   v3.4 · 回应 / 想你一下 / 那年今天 / 相册 / 未读 / 同步体检
+   ========================================================================== */
+
+.nav a,
+.bottom-nav a {
+  position: relative;
+}
+
+.nav a.has-unread::after,
+.bottom-nav a.has-unread::after {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.nav a.has-unread::after {
+  top: 10px;
+  right: 12px;
+}
+
+.bottom-nav a.has-unread::after {
+  top: 4px;
+  left: calc(50% + 8px);
+}
+
+/* ---- 回应 ------------------------------------------------------------- */
+
+.reaction-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.reaction-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background .18s, color .18s, border-color .18s, transform .18s;
+}
+
+.reaction-btn small {
+  font-size: 9px;
+}
+
+.reaction-btn:hover {
+  color: var(--ink-soft);
+  background: var(--surface);
+}
+
+.reaction-btn.active {
+  color: var(--accent-deep);
+  background: var(--accent-wash);
+  border-color: rgba(217, 108, 79, .38);
+}
+
+.reaction-btn:active {
+  transform: scale(.94);
+}
+
+.reaction-btn.active span {
+  animation: heart-pop .4s var(--spring) both;
+}
+
+.reaction-partner {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* ---- 想你一下 --------------------------------------------------------- */
+
+.nudge-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 11px 13px;
+  background: linear-gradient(120deg, #fdeeee, #f7e9f6);
+  border: 1px solid #f0d7e5;
+  border-radius: 16px;
+  animation: nudge-in .4s var(--spring-soft) both;
+}
+
+.nudge-heart {
+  font-size: 20px;
+  animation: nudge-beat 1.8s ease-in-out infinite;
+}
+
+.nudge-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.nudge-copy strong,
+.nudge-copy small {
+  display: block;
+}
+
+.nudge-copy strong {
+  color: #8a4a63;
+  font-size: 12px;
+}
+
+.nudge-copy small {
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.nudge-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.nudge-send {
+  padding: 9px 16px;
+  color: var(--accent-deep);
+  background: var(--surface);
+  border: 1px solid rgba(217, 108, 79, .28);
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .18s, transform .18s, box-shadow .18s;
+}
+
+.nudge-send:hover {
+  background: var(--accent-wash);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px -18px rgba(120, 70, 45, .9);
+}
+
+.nudge-send:active {
+  transform: scale(.95);
+}
+
+.nudge-bar > span {
+  color: var(--muted-2);
+  font-size: 9px;
+}
+
+@keyframes nudge-beat {
+  0%, 100% { transform: scale(1); }
+  18% { transform: scale(1.18); }
+  36% { transform: scale(1); }
+  54% { transform: scale(1.1); }
+}
+
+@keyframes nudge-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- 那年今天 --------------------------------------------------------- */
+
+.onthisday {
+  margin-top: 16px;
+  padding: 15px 17px;
+  background: linear-gradient(135deg, #fff6e8, #fbeae6);
+  border: 1px solid #f2e0cf;
+  border-radius: 20px;
+}
+
+.onthisday-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--accent-deep);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.onthisday-head span {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.onthisday-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  color: inherit;
+  background: rgba(255, 255, 255, .68);
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 13px;
+  font-family: var(--sans);
+  text-align: left;
+  cursor: pointer;
+  transition: background .18s, transform .18s;
+}
+
+.onthisday-card:hover {
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.onthisday-photo {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.onthisday-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.onthisday-copy small,
+.onthisday-copy strong {
+  display: block;
+}
+
+.onthisday-copy small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.onthisday-copy strong {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onthisday-card > .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted-2);
+}
+
+/* ---- 相册 ------------------------------------------------------------- */
+
+.section-links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-links .text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.album-group {
+  margin-bottom: 24px;
+}
+
+.album-month {
+  margin: 0 0 10px;
+  font-family: var(--serif);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.album-month small {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 400;
+}
+
+.album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+}
+
+.album-item {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  background: var(--surface-2);
+  border: 0;
+  border-radius: 12px;
+  aspect-ratio: 1 / 1;
+  cursor: pointer;
+}
+
+.album-item:active {
+  transform: scale(.98);
+}
+
+.album-photo {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.album-date {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 1px 6px;
+  color: #fff;
+  background: rgba(0, 0, 0, .42);
+  border-radius: 999px;
+  font-size: 8px;
+}
+
+.photo-viewer {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--surface-2);
+  border-radius: 16px;
+}
+
+.photo-viewer-img {
+  max-width: 100%;
+  max-height: 60dvh;
+  object-fit: contain;
+}
+
+.photo-viewer-text {
+  margin: 14px 0 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.photo-viewer-foot {
+  margin-top: 12px;
+}
+
+/* ---- 同步体检 --------------------------------------------------------- */
+
+.sync-health {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 15px;
+  padding: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.health-item span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.health-item strong {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-health.is-bad {
+  background: #fdf1ee;
+  border-color: #ecd2cb;
+}
+
+.sync-health.is-bad .health-item:first-child strong {
+  color: var(--danger);
+}
+
+.sync-health.is-good .health-item:first-child strong {
+  color: #5b7457;
+}
+
+.health-item.is-warn strong {
+  color: #b06a3c;
+}
+
+.sync-error-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: -6px 0 14px;
+  color: var(--danger);
+  font-size: 9.5px;
+}
+
+.sync-error-note .icon {
+  width: 13px;
+  height: 13px;
+  margin-top: 1px;
+}
+
+@media (max-width: 680px) {
+  .reaction-btn small {
+    display: none;
+  }
+
+  .nudge-bar > span {
+    display: none;
+  }
+
+  .album-grid {
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  }
+
+  .onthisday {
+    padding: 13px 14px;
+  }
+}
+
+/* 首页 hero chips 收紧，四个能排成一行 */
+.hero-chips {
+  gap: 5px;
+}
+
+.hero-chips a {
+  padding: 2px 7px;
+  gap: 4px;
+  font-size: 9.5px;
+}
+
+.hero-chips a strong {
+  font-size: 11px;
+}

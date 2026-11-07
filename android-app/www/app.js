@@ -3879,10 +3879,76 @@
     </form>`;
   }
 
+  function decodeLoose(value) {
+    let text = String(value || '');
+    for (let index = 0; index < 2; index += 1) {
+      try {
+        const decoded = decodeURIComponent(text);
+        if (decoded === text) break;
+        text = decoded;
+      } catch (error) {
+        break;
+      }
+    }
+    return text.replace(/\+/g, ' ');
+  }
+
+  function parsePlaceLink(raw) {
+    const text = String(raw || '').trim();
+    if (!text) return null;
+    const decoded = decodeLoose(text);
+    const result = { name: '', city: '', address: '', mapUrl: '', lat: '', lng: '' };
+    if (/^https?:\/\//i.test(text)) result.mapUrl = text;
+
+    let match = decoded.match(/[?&](?:name|poiname|dname|sname)=([^&]+)/);
+    if (match) result.name = match[1];
+    match = decoded.match(/\/poi\/([^/@?]+)\/@/);
+    if (match) result.name = match[1];
+    match = decoded.match(/[?&](?:position|location)=([\d.]+),([\d.]+)/);
+    if (match) {
+      result.lng = match[1];
+      result.lat = match[2];
+    }
+    match = decoded.match(/[?&]dlat=([\d.]+)[^&]*&(?:[^&]*&)*?dlon=([\d.]+)/);
+    if (match) {
+      result.lat = match[1];
+      result.lng = match[2];
+    }
+    match = decoded.match(/[?&](?:address|addr|adname)=([^&]+)/);
+    if (match) result.address = match[1];
+    match = decoded.match(/[?&](?:city|cityname)=([^&]+)/);
+    if (match) result.city = match[1];
+
+    const strip = (value, limit) => value.replace(/<[^>]*>/g, '').trim().slice(0, limit);
+    result.name = strip(result.name, 40);
+    result.address = strip(result.address, 120);
+    result.city = strip(result.city, 20);
+
+    if (result.lat && result.lng) {
+      const label = encodeURIComponent(result.name || '想去的店');
+      result.mapUrl = `geo:${result.lat},${result.lng}?q=${result.lat},${result.lng}(${label})`;
+    }
+    return result;
+  }
+
+  function fillPlaceForm(form, parsed) {
+    if (!form || !parsed) return;
+    const setValue = (selector, value) => {
+      const input = form.querySelector(selector);
+      if (input && value) input.value = value;
+    };
+    setValue('#place-name', parsed.name);
+    setValue('#place-city', parsed.city);
+    setValue('#place-address', parsed.address);
+    setValue('#place-map', parsed.mapUrl);
+    const more = form.querySelector('.form-more');
+    if (more && (parsed.city || parsed.address || parsed.mapUrl)) more.open = true;
+  }
+
   function placeForm(place = null) {
     const editing = Boolean(place);
     const data = place || {
-      scene: 'home',
+      scene: 'other',
       city: '',
       address: '',
       mapUrl: '',
@@ -3894,63 +3960,80 @@
       status: 'wanted',
       favorite: false,
     };
+    const hasMore = Boolean(
+      data.city || data.address || data.mapUrl
+      || (data.dishes && data.dishes.length)
+      || (data.tags && data.tags.length)
+      || data.note
+      || (data.photos && data.photos.length)
+      || data.status === 'visited'
+    );
     return `<form id="place-form" data-id="${editing ? esc(place.id) : ''}">
-      <div class="form-grid">
-        <div class="field span-2">
-          <label for="place-name">店名 <em>*</em></label>
-          <input class="input" id="place-name" name="name" maxlength="40" value="${esc(data.name || '')}" placeholder="比如：楼下那家小面馆" required>
-        </div>
-        <div class="field span-2">
-          <span class="field-label">归到哪一栏 <span class="field-hint">决定什么时候方便去</span></span>
-          <div class="scene-picker">
-            ${Object.entries(PLACE_SCENES).map(([key, scene]) => `<button type="button" class="scene-option ${data.scene === key ? 'active' : ''}" data-action="pick-scene" data-scene="${key}">
-              <span class="scene-emoji">${scene.emoji}</span>
-              <span class="scene-copy"><strong>${scene.label}</strong><small>${scene.hint}</small></span>
-            </button>`).join('')}
-          </div>
-          <input type="hidden" class="scene-value" name="scene" value="${esc(data.scene)}">
-        </div>
-        <div class="field">
-          <label for="place-city">城市 <span class="field-hint">出去玩时填</span></label>
-          <input class="input" id="place-city" name="city" maxlength="20" value="${esc(data.city || '')}" placeholder="比如：厦门">
-        </div>
-        <div class="field">
-          <span class="field-label">状态</span>
-          <select class="select" id="place-status" name="status">
-            <option value="wanted" ${data.status !== 'visited' ? 'selected' : ''}>还没去过</option>
-            <option value="visited" ${data.status === 'visited' ? 'selected' : ''}>已经去过</option>
-          </select>
-        </div>
-        <div class="field span-2">
-          <label for="place-address">位置 <span class="field-hint">地址或“怎么走”</span></label>
-          <input class="input" id="place-address" name="address" maxlength="120" value="${esc(data.address || '')}" placeholder="街道、门牌，或者“地铁口出来右转”">
-        </div>
-        <div class="field span-2">
-          <label for="place-map">地图链接 <span class="field-hint">可选，不填就按地址搜</span></label>
-          <input class="input" id="place-map" name="mapUrl" maxlength="400" value="${esc(data.mapUrl || '')}" placeholder="可以粘贴高德/百度地图分享出来的链接">
-        </div>
-        <div class="field span-2">
-          <label for="place-dishes">想吃的菜 <span class="field-hint">用逗号隔开</span></label>
-          <input class="input" id="place-dishes" name="dishes" maxlength="200" value="${esc((data.dishes || []).join('，'))}" placeholder="招牌面，葱油饼，冰豆浆">
-        </div>
-        <div class="field span-2">
-          <label for="place-tags">标签 <span class="field-hint">可选，用逗号隔开</span></label>
-          <input class="input" id="place-tags" name="tags" maxlength="80" value="${esc((data.tags || []).join('，'))}" placeholder="面食，夜宵，适合下雨天">
-        </div>
-        <div class="field span-2">
-          <span class="field-label">谁想吃 <span class="field-hint">可以都选</span></span>
-          ${wantedByPicker(data.wantedBy)}
-        </div>
-        <div class="field span-2">
-          <label for="place-note">备注</label>
-          <textarea class="textarea" id="place-note" name="note" maxlength="200" rows="2" placeholder="为什么想去？有什么要记住的？">${esc(data.note || '')}</textarea>
-        </div>
-        <div class="field span-2">
-          <span class="field-label">门头/菜品照片 <span class="field-hint">可选</span></span>
-          ${photoField(data.photos && data.photos[0] ? data.photos[0] : '', 'place')}
-        </div>
+      <div class="field">
+        <label for="place-name">店名 <em>*</em></label>
+        <input class="input" id="place-name" name="name" maxlength="40" value="${esc(data.name || '')}" placeholder="比如：楼下那家小面馆" required>
       </div>
-      <label class="check-row">
+      <div class="link-assist">
+        <input class="input" id="place-link" type="text" placeholder="粘贴地图/点评分享链接，自动识别店名" aria-label="粘贴分享链接自动识别">
+        <button class="btn btn-ghost btn-sm" type="button" data-action="parse-place-link">识别</button>
+      </div>
+      <p class="link-assist-hint">认不出来也没关系：只填店名就能收藏，位置和菜以后随时能补。</p>
+
+      <div class="field" style="margin-top:15px">
+        <span class="field-label">归到哪一栏 <span class="field-hint">决定什么时候方便去</span></span>
+        <div class="scene-chips">
+          ${Object.entries(PLACE_SCENES).map(([key, scene]) => `<button class="scene-chip ${data.scene === key ? 'active' : ''}" type="button" data-action="pick-scene" data-scene="${key}">${scene.emoji} ${scene.label}</button>`).join('')}
+        </div>
+        <input type="hidden" class="scene-value" name="scene" value="${esc(data.scene)}">
+      </div>
+
+      <div class="field" style="margin-top:15px">
+        <span class="field-label">谁想吃 <span class="field-hint">可以都选</span></span>
+        ${wantedByPicker(data.wantedBy)}
+      </div>
+
+      <details class="form-more" ${hasMore ? 'open' : ''}>
+        <summary>补充信息（可选）<small>位置、想吃的菜、备注、照片</small></summary>
+        <div class="form-grid">
+          <div class="field">
+            <label for="place-city">城市 <span class="field-hint">出去玩时填</span></label>
+            <input class="input" id="place-city" name="city" maxlength="20" value="${esc(data.city || '')}" placeholder="比如：厦门">
+          </div>
+          <div class="field">
+            <span class="field-label">状态</span>
+            <select class="select" id="place-status" name="status">
+              <option value="wanted" ${data.status !== 'visited' ? 'selected' : ''}>还没去过</option>
+              <option value="visited" ${data.status === 'visited' ? 'selected' : ''}>已经去过</option>
+            </select>
+          </div>
+          <div class="field span-2">
+            <label for="place-address">位置 <span class="field-hint">地址或“怎么走”</span></label>
+            <input class="input" id="place-address" name="address" maxlength="120" value="${esc(data.address || '')}" placeholder="街道、门牌，或者“地铁口出来右转”">
+          </div>
+          <div class="field span-2">
+            <label for="place-map">地图链接 <span class="field-hint">不填就按店名和地址搜</span></label>
+            <input class="input" id="place-map" name="mapUrl" maxlength="400" value="${esc(data.mapUrl || '')}" placeholder="粘贴高德/百度地图链接，或识别后自动填入">
+          </div>
+          <div class="field span-2">
+            <label for="place-dishes">想吃的菜 <span class="field-hint">用逗号隔开</span></label>
+            <input class="input" id="place-dishes" name="dishes" maxlength="200" value="${esc((data.dishes || []).join('，'))}" placeholder="招牌面，葱油饼，冰豆浆">
+          </div>
+          <div class="field span-2">
+            <label for="place-tags">标签 <span class="field-hint">可选，用逗号隔开</span></label>
+            <input class="input" id="place-tags" name="tags" maxlength="80" value="${esc((data.tags || []).join('，'))}" placeholder="面食，夜宵，适合下雨天">
+          </div>
+          <div class="field span-2">
+            <label for="place-note">备注</label>
+            <textarea class="textarea" id="place-note" name="note" maxlength="200" rows="2" placeholder="为什么想去？有什么要记住的？">${esc(data.note || '')}</textarea>
+          </div>
+          <div class="field span-2">
+            <span class="field-label">门头/菜品照片 <span class="field-hint">可选</span></span>
+            ${photoField(data.photos && data.photos[0] ? data.photos[0] : '', 'place')}
+          </div>
+        </div>
+      </details>
+
+      <label class="check-row" style="margin-top:15px">
         <input type="checkbox" name="favorite" ${data.favorite ? 'checked' : ''}>
         <span>放进我们的收藏</span>
       </label>
@@ -5416,6 +5499,21 @@
       return;
     }
 
+    if (action === 'parse-place-link') {
+      const form = actionElement.closest('form');
+      if (!form) return;
+      const input = form.querySelector('#place-link');
+      const parsed = parsePlaceLink(input ? input.value : '');
+      if (!parsed || (!parsed.name && !parsed.mapUrl)) {
+        toast('没认出这个链接，直接填店名也行');
+        return;
+      }
+      fillPlaceForm(form, parsed);
+      if (parsed.name) toast(`认出「${parsed.name}」`);
+      else toast('链接记下了，店名补一下');
+      return;
+    }
+
     if (action === 'wish-tab') {
       ui.wishTab = actionElement.dataset.tab === 'places' ? 'places' : 'dishes';
       render();
@@ -5643,12 +5741,12 @@
     }
 
     if (action === 'pick-scene') {
-      const picker = actionElement.closest('.scene-picker');
+      const picker = actionElement.closest('.scene-picker, .scene-chips');
       const form = actionElement.closest('form');
       if (!picker || !form) return;
-      $$('.scene-option', picker).forEach((button) => button.classList.toggle('active', button === actionElement));
+      $$('.scene-option, .scene-chip', picker).forEach((button) => button.classList.toggle('active', button === actionElement));
       const hidden = form.querySelector('.scene-value');
-      if (hidden) hidden.value = actionElement.dataset.scene || 'home';
+      if (hidden) hidden.value = actionElement.dataset.scene || 'other';
       return;
     }
 
@@ -5789,6 +5887,14 @@
       } else if (isSettingsOpen()) {
         closeSettings();
       }
+      return;
+    }
+
+    if (event.key === 'Enter' && event.target.id === 'place-link') {
+      event.preventDefault();
+      const form = event.target.closest('form');
+      const button = form ? form.querySelector('[data-action="parse-place-link"]') : null;
+      if (button) button.click();
       return;
     }
 

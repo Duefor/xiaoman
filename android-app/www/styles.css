@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    小满 · 两个人的小小宇宙
    A warm, local-first couple space. Hand-written CSS, no dependencies.
    ========================================================================== */
@@ -2793,7 +2793,13 @@ h1, h2, h3, h4, p {
   background: var(--surface);
   border-radius: 23px;
   box-shadow: 0 34px 90px -30px rgba(40, 27, 17, .65);
-  animation: modal-pop .24s var(--ease) both;
+  animation: confirm-pop .3s var(--ease) both;
+}
+
+@keyframes confirm-pop {
+  0% { opacity: 0; transform: translateY(12px) scale(.95); }
+  62% { opacity: 1; transform: translateY(-2px) scale(1.008); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .confirm-icon {
@@ -5975,3 +5981,111 @@ body.island-mode .toast {
   }
 }
 
+
+/* ==========================================================================
+   v3.3.1 · 收藏店铺：轻量表单
+   ========================================================================== */
+
+.link-assist {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.link-assist .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.link-assist .btn {
+  flex: none;
+}
+
+.link-assist-hint {
+  margin: 6px 0 0;
+  color: var(--muted-2);
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.scene-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.scene-chip {
+  padding: 7px 12px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background .18s, border-color .18s, color .18s, transform .18s;
+}
+
+.scene-chip:hover {
+  color: var(--ink-soft);
+  background: var(--surface);
+}
+
+.scene-chip.active {
+  color: var(--accent-deep);
+  background: var(--accent-wash);
+  border-color: rgba(217, 108, 79, .4);
+  font-weight: 700;
+}
+
+.scene-chip:active {
+  transform: scale(.96);
+}
+
+.form-more {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.form-more > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.form-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.form-more > summary::before {
+  content: "＋";
+  color: var(--accent-deep);
+  font-weight: 700;
+}
+
+.form-more[open] > summary::before {
+  content: "－";
+}
+
+.form-more > summary small {
+  color: var(--muted-2);
+  font-size: 9px;
+  font-weight: 400;
+}
+
+.form-more .form-grid {
+  margin-top: 13px;
+}
+
+@media (max-width: 680px) {
+  .scene-chip {
+    padding: 7px 11px;
+  }
+}

@@ -69,11 +69,20 @@ public class XiaomanSyncWorker extends Worker {
             if (data == null) return Result.success();
             String updatedAt = data.optString("updatedAt", "");
             String baseline = prefs.getString("baseline", "");
+            String identity = prefs.getString("identity", "me");
             if (updatedAt.isEmpty() || updatedAt.equals(baseline)) return Result.success();
+            if (baseline.isEmpty()) {
+                prefs.edit().putString("baseline", updatedAt).apply();
+                return Result.success();
+            }
 
-            String body = buildBody(data);
-            String route = body.contains("想你了一下") ? "home" : "moments";
-            XiaomanNotifyPlugin.show(context, "小满 · 有新动静", body, route);
+            Notice notice = buildNotice(data, baseline, identity);
+            if (notice == null) {
+                // 只有自己的改动，更新基线但不提醒
+                prefs.edit().putString("baseline", updatedAt).apply();
+                return Result.success();
+            }
+            XiaomanNotifyPlugin.show(context, "小满 · 有新动静", notice.body, notice.route);
             prefs.edit().putString("baseline", updatedAt).apply();
             return Result.success();
         } catch (Exception error) {
@@ -84,57 +93,99 @@ public class XiaomanSyncWorker extends Worker {
         }
     }
 
-    private String buildBody(JSONObject data) {
-        try {
-            JSONObject names = data.optJSONObject("names");
-            JSONArray moments = data.optJSONArray("moments");
-            JSONObject newest = null;
-            if (moments != null && moments.length() > 0) {
-                for (int index = 0; index < moments.length(); index += 1) {
-                    JSONObject item = moments.optJSONObject(index);
-                    if (item == null) continue;
-                    if (newest == null || item.optString("date").compareTo(newest.optString("date")) > 0) {
-                        newest = item;
-                    }
-                }
-            }
+    private static class Notice {
+        final String body;
+        final String route;
 
-            JSONArray nudges = data.optJSONArray("nudges");
-            String newestNudgeAt = "";
-            String newestNudgeFrom = "me";
-            if (nudges != null) {
-                for (int index = 0; index < nudges.length(); index += 1) {
-                    JSONObject item = nudges.optJSONObject(index);
-                    if (item == null) continue;
-                    String at = item.optString("at", "");
-                    if (at.compareTo(newestNudgeAt) > 0) {
-                        newestNudgeAt = at;
-                        newestNudgeFrom = item.optString("from", "me");
-                    }
-                }
-            }
-
-            String newestMomentAt = newest == null
-                ? ""
-                : newest.optString("updatedAt", newest.optString("date", ""));
-            if (!newestNudgeAt.isEmpty() && newestNudgeAt.compareTo(newestMomentAt) > 0) {
-                String who = names == null ? "" : names.optString(newestNudgeFrom, "");
-                return (who.isEmpty() ? "TA" : who) + " 想你了一下，点开回一个。";
-            }
-
-            if (newest != null) {
-                String text = newest.optString("text", "").trim();
-                String author = newest.optString("author", "me");
-                String who = names == null ? "" : names.optString(author, "");
-                if (text.length() > 40) text = text.substring(0, 40) + "…";
-                if (!text.isEmpty()) {
-                    return (who.isEmpty() ? "TA" : who) + "：" + text;
-                }
-            }
-        } catch (Exception ignored) {
-            // 落到默认文案
+        Notice(String body, String route) {
+            this.body = body;
+            this.route = route;
         }
-        return "TA 刚刚更新了小满，点开看看。";
+    }
+
+    private Notice buildNotice(JSONObject data, String baseline, String identity) {
+        JSONObject names = data.optJSONObject("names");
+        Notice best = null;
+        String bestAt = "";
+
+        JSONArray moments = data.optJSONArray("moments");
+        if (moments != null) {
+            for (int index = 0; index < moments.length(); index += 1) {
+                JSONObject item = moments.optJSONObject(index);
+                if (item == null) continue;
+                String at = item.optString("updatedAt", item.optString("date", ""));
+                if (at.compareTo(baseline) <= 0) continue;
+                String actor = item.optString("lastActor", "");
+                if (actor.isEmpty()) actor = item.optString("author", "me");
+                if (actor.equals(identity)) continue;
+                if (at.compareTo(bestAt) <= 0) continue;
+                bestAt = at;
+                best = describeMoment(item, names, actor);
+            }
+        }
+
+        JSONArray nudges = data.optJSONArray("nudges");
+        if (nudges != null) {
+            for (int index = 0; index < nudges.length(); index += 1) {
+                JSONObject item = nudges.optJSONObject(index);
+                if (item == null) continue;
+                String at = item.optString("at", "");
+                if (at.compareTo(baseline) <= 0) continue;
+                String from = item.optString("from", "me");
+                if (from.equals(identity)) continue;
+                if (at.compareTo(bestAt) <= 0) continue;
+                String who = names == null ? "" : names.optString(from, "");
+                bestAt = at;
+                best = new Notice((who.isEmpty() ? "TA" : who) + " 想你了一下，点开回一个。", "home");
+            }
+        }
+        return best;
+    }
+
+    private Notice describeMoment(JSONObject item, JSONObject names, String actor) {
+        String who = names == null ? "" : names.optString(actor, "");
+        if (who.isEmpty()) who = "TA";
+        String action = item.optString("lastAction", "");
+
+        if ("comment".equals(action)) {
+            String latest = "";
+            String latestAt = "";
+            JSONArray comments = item.optJSONArray("comments");
+            if (comments != null) {
+                for (int index = 0; index < comments.length(); index += 1) {
+                    JSONObject comment = comments.optJSONObject(index);
+                    if (comment == null) continue;
+                    if (!actor.equals(comment.optString("author", ""))) continue;
+                    String at = comment.optString("at", "");
+                    if (at.compareTo(latestAt) > 0) {
+                        latestAt = at;
+                        latest = comment.optString("text", "").trim();
+                    }
+                }
+            }
+            if (!latest.isEmpty()) {
+                return new Notice(who + " 评论了：" + ellipsis(latest, 50), "moments");
+            }
+        }
+
+        if ("react".equals(action)) {
+            JSONObject reactions = item.optJSONObject("reactions");
+            String key = reactions == null ? "" : reactions.optString(actor, "");
+            String emoji = "🤗";
+            if ("miss".equals(key)) emoji = "🥺";
+            else if ("laugh".equals(key)) emoji = "😂";
+            return new Notice(who + " 回应了你的动态 " + emoji, "moments");
+        }
+
+        String text = item.optString("text", "").trim();
+        if (text.isEmpty()) text = "一张照片";
+        return new Notice(who + "：" + ellipsis(text, 50), "moments");
+    }
+
+    private String ellipsis(String text, int limit) {
+        if (text == null) return "";
+        String value = text.trim();
+        return value.length() > limit ? value.substring(0, limit) + "…" : value;
     }
 
     private boolean inQuietHours(SharedPreferences prefs) {

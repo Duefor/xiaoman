@@ -630,6 +630,22 @@
     return seeded;
   }
 
+  function normalizeComment(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const text = String(raw.text || '').trim().slice(0, 200);
+    if (!text) return null;
+    return {
+      id: String(raw.id || uid()),
+      author: raw.author === 'partner' ? 'partner' : 'me',
+      text,
+      at: isoOr(raw.at, isoNow()),
+    };
+  }
+
+  function normalizeComments(raw) {
+    return Array.isArray(raw) ? raw.map(normalizeComment).filter(Boolean).slice(-50) : [];
+  }
+
   function normalizeReactions(raw) {
     const source = raw && typeof raw === 'object' ? raw : {};
     const result = {};
@@ -656,6 +672,9 @@
       foodEmoji: String(raw.foodEmoji || raw.emoji || '🍲').slice(0, 8),
       wishStatus: raw.wishStatus === 'planned' ? 'planned' : 'wanted',
       reactions: normalizeReactions(raw.reactions),
+      comments: normalizeComments(raw.comments),
+      lastActor: raw.lastActor === 'partner' ? 'partner' : (raw.lastActor === 'me' ? 'me' : ''),
+      lastAction: ['post', 'edit', 'react', 'comment'].includes(raw.lastAction) ? raw.lastAction : '',
       updatedAt: isoOr(raw.updatedAt, isoOr(raw.date, isoNow())),
     };
   }
@@ -1179,6 +1198,18 @@
     merged.tombstones = tombstones;
 
     merged.moments = mergeCollection(local.moments, remote.moments, tombstones.moments);
+    const localMomentMap = new Map(local.moments.map((moment) => [moment.id, moment]));
+    const remoteMomentMap = new Map(remote.moments.map((moment) => [moment.id, moment]));
+    merged.moments.forEach((moment) => {
+      const localMoment = localMomentMap.get(moment.id);
+      const remoteMoment = remoteMomentMap.get(moment.id);
+      const commentMap = new Map();
+      [...((localMoment && localMoment.comments) || []), ...((remoteMoment && remoteMoment.comments) || [])]
+        .forEach((comment) => commentMap.set(comment.id, comment));
+      moment.comments = [...commentMap.values()]
+        .sort((a, b) => new Date(a.at) - new Date(b.at))
+        .slice(-50);
+    });
     merged.anniversaries = mergeCollection(local.anniversaries, remote.anniversaries, tombstones.anniversaries);
     merged.wishes = {
       dishes: mergeCollection(local.wishes.dishes, remote.wishes.dishes, tombstones.dishes),
@@ -2134,7 +2165,7 @@
         quietStart: notify.quietStart,
         quietEnd: notify.quietEnd,
         baseline: state.updatedAt || '',
-        identity: sync.identity || '',
+        identity: sync.identity || 'me',
       });
     } catch (error) {
       // Native scheduling is best effort.
@@ -2550,8 +2581,11 @@
     const momentsAt = since(read.momentsAt);
     const wishesAt = since(read.wishesAt);
     const nudgesAt = since(read.nudgesAt);
-    const moments = state.moments.some((moment) => moment.author !== me
-      && since(moment.updatedAt || moment.date) > momentsAt);
+    const moments = state.moments.some((moment) => {
+      if (since(moment.updatedAt || moment.date) <= momentsAt) return false;
+      if (moment.author !== me) return true;
+      return (moment.comments || []).some((comment) => comment.author !== me && since(comment.at) > momentsAt);
+    });
     const dishes = state.wishes.dishes.some((dish) => (dish.wantedBy || []).includes(other)
       && since(dish.updatedAt) > wishesAt);
     const places = state.wishes.places.some((place) => (place.wantedBy || []).includes(other)
@@ -3105,6 +3139,29 @@
     }).join('');
   }
 
+  function canManageMoment(moment) {
+    return moment.author === (sync.identity || 'me');
+  }
+
+  function commentBlock(moment) {
+    const comments = moment.comments || [];
+    const shown = comments.slice(-3);
+    return `<div class="comment-block">
+      ${shown.length ? `<div class="comment-list">${shown.map((comment) => `<div class="comment-item">
+        ${avatarFor(comment.author, 'tiny')}
+        <span class="comment-name">${esc(nameOf(comment.author))}</span>
+        <span class="comment-text">${esc(comment.text)}</span>
+      </div>`).join('')}</div>` : ''}
+      <details class="comment-write">
+        <summary>${comments.length ? `继续评论${comments.length > 3 ? `（共 ${comments.length} 条）` : ''}` : '写评论'}</summary>
+        <form class="comment-form" data-comment-id="${esc(moment.id)}">
+          <input class="comment-input" name="comment" maxlength="200" placeholder="回复一句…" autocomplete="off" aria-label="写评论">
+          <button class="comment-send" type="submit" aria-label="发送评论">${icon('arrow')}</button>
+        </form>
+      </details>
+    </div>`;
+  }
+
   function wishCard(moment) {
     const planned = moment.wishStatus === 'planned';
     return `<article class="wish-card ${planned ? 'planned' : ''}" data-author="${moment.author}" data-search="${esc(`${moment.text} ${nameOf(moment.author)}`)}">
@@ -3121,12 +3178,13 @@
         ${avatarFor(moment.author, 'tiny')}
         <span class="wish-author">${esc(nameOf(moment.author))}</span>
         <span class="wish-time">${esc(fmtMomentTime(moment.date))}</span>
-        <button class="icon-btn" type="button" data-action="edit-moment" data-space="shared" data-id="${esc(moment.id)}" aria-label="编辑想吃卡片">${icon('edit')}</button>
-        <button class="icon-btn danger" type="button" data-action="delete-moment" data-space="shared" data-id="${esc(moment.id)}" aria-label="删除想吃卡片">${icon('trash')}</button>
+        ${canManageMoment(moment) ? `<button class="icon-btn" type="button" data-action="edit-moment" data-space="shared" data-id="${esc(moment.id)}" aria-label="编辑想吃卡片">${icon('edit')}</button>
+        <button class="icon-btn danger" type="button" data-action="delete-moment" data-space="shared" data-id="${esc(moment.id)}" aria-label="删除想吃卡片">${icon('trash')}</button>` : ''}
         <button class="wish-plan-btn ${planned ? 'done' : ''}" type="button" data-action="plan-wish" data-id="${esc(moment.id)}" ${planned ? 'disabled' : ''}>
           ${icon(planned ? 'check' : 'sparkles')} ${planned ? '已安排' : '安排！'}
         </button>
       </div>
+      ${commentBlock(moment)}
     </article>`;
   }
 
@@ -3140,14 +3198,15 @@
           <span>${esc(fmtMomentTime(moment.date))}</span>
         </div>
         <div class="moment-tools">
-          <button class="icon-btn" type="button" data-action="edit-moment" data-space="shared" data-id="${esc(moment.id)}" aria-label="编辑这条日常">${icon('edit')}</button>
-          <button class="icon-btn danger" type="button" data-action="delete-moment" data-space="shared" data-id="${esc(moment.id)}" aria-label="删除这条日常">${icon('trash')}</button>
+          ${canManageMoment(moment) ? `<button class="icon-btn" type="button" data-action="edit-moment" data-space="shared" data-id="${esc(moment.id)}" aria-label="编辑这条日常">${icon('edit')}</button>
+          <button class="icon-btn danger" type="button" data-action="delete-moment" data-space="shared" data-id="${esc(moment.id)}" aria-label="删除这条日常">${icon('trash')}</button>` : ''}
         </div>
       </div>
       <p class="moment-text">${esc(moment.text)}</p>
       ${photoImg(moment.photo, 'moment-photo', '日常照片')}
       <div class="moment-foot">${moodChip(moment)}</div>
       ${reactionRow(moment)}
+      ${commentBlock(moment)}
     </article>`;
   }
 
@@ -5048,6 +5107,10 @@
 
     const list = space === 'personal' ? state.personal[sync.identity].moments : state.moments;
     const existing = editingMoment || null;
+    if (existing && space === 'shared' && existing.author !== (sync.identity || 'me')) {
+      toast('只能编辑自己发的动态');
+      return;
+    }
     const dateValue = String(formData.get('date') || '');
     const parsedDate = new Date(dateValue);
     const date = Number.isNaN(parsedDate.getTime()) ? new Date().toISOString() : parsedDate.toISOString();
@@ -5061,6 +5124,8 @@
       photo,
       foodEmoji: kind === 'wish' ? (existing && existing.foodEmoji) || '🍲' : '',
       wishStatus: kind === 'wish' ? ((existing && existing.wishStatus) || 'wanted') : '',
+      lastActor: space === 'personal' ? sync.identity : (sync.identity || 'me'),
+      lastAction: existing ? 'edit' : 'post',
       updatedAt: isoNow(),
     };
     if (existing) Object.assign(existing, next);
@@ -5384,6 +5449,10 @@
     }
     const moment = state.moments.find((item) => item.id === id);
     if (!moment) return;
+    if (!canManageMoment(moment)) {
+      toast('只能删除自己发的动态');
+      return;
+    }
     closeModal();
     openConfirm({
       title: moment.kind === 'wish' ? '删掉这张想吃卡片？' : '删掉这条日常？',
@@ -5468,10 +5537,28 @@
     if (reactions[me] === key) delete reactions[me];
     else reactions[me] = key;
     moment.reactions = reactions;
+    moment.lastActor = me;
+    moment.lastAction = 'react';
     moment.updatedAt = isoNow();
     if (!saveState()) return;
     render();
     toast(reactions[me] ? `回应了「${REACTIONS[key].label}」` : '取消回应');
+  }
+
+  function commentMoment(id, rawText) {
+    const text = String(rawText || '').trim().slice(0, 200);
+    if (!text) return false;
+    const me = sync.identity || 'me';
+    const moment = state.moments.find((item) => item.id === id);
+    if (!moment) return false;
+    const comments = [...(moment.comments || []), { id: uid(), author: me, text, at: isoNow() }].slice(-50);
+    moment.comments = comments;
+    moment.lastActor = me;
+    moment.lastAction = 'comment';
+    moment.updatedAt = isoNow();
+    if (!saveState()) return false;
+    render();
+    return true;
   }
 
   function sendNudge() {
@@ -5924,7 +6011,13 @@
         ? (sync.identity ? state.personal[sync.identity].moments : [])
         : state.moments;
       const moment = list.find((item) => item.id === actionElement.dataset.id);
-      if (moment) openMomentModal(moment, '', { space });
+      if (moment) {
+        if (space === 'shared' && !canManageMoment(moment)) {
+          toast('只能编辑自己发的动态');
+          return;
+        }
+        openMomentModal(moment, '', { space });
+      }
       return;
     }
 
@@ -6204,6 +6297,21 @@
 
   function handleSubmit(event) {
     const form = event.target;
+    if (form.dataset && form.dataset.commentId) {
+      event.preventDefault();
+      const input = form.querySelector('input[name="comment"]');
+      const id = form.dataset.commentId;
+      if (input && commentMoment(id, input.value)) {
+        const forms = $$('.comment-form');
+        const target = forms.find((item) => item.dataset.commentId === id);
+        if (target) {
+          target.closest('.comment-write').open = true;
+          const nextInput = target.querySelector('input[name="comment"]');
+          if (nextInput) nextInput.focus({ preventScroll: true });
+        }
+      }
+      return;
+    }
     if (!['moment-form', 'dish-form', 'place-form', 'anniv-form', 'profile-form', 'sync-form', 'update-form', 'notify-form'].includes(form.id)) return;
     event.preventDefault();
     if (form.id === 'moment-form') saveMoment(form);

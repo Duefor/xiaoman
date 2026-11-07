@@ -183,6 +183,7 @@ public class XiaomanNotifyPlugin extends Plugin {
         String quietStart = call.getString("quietStart", "23:00");
         String quietEnd = call.getString("quietEnd", "08:00");
         String baseline = call.getString("baseline", "");
+        String identity = call.getString("identity", "me");
 
         prefs.edit()
             .putBoolean("enabled", enabled)
@@ -191,6 +192,7 @@ public class XiaomanNotifyPlugin extends Plugin {
             .putString("quietStart", quietStart == null ? "23:00" : quietStart)
             .putString("quietEnd", quietEnd == null ? "08:00" : quietEnd)
             .putString("baseline", baseline == null ? "" : baseline)
+            .putString("identity", identity == null ? "me" : identity)
             .apply();
 
         if (enabled && sharedUrl != null && !sharedUrl.isEmpty()) {

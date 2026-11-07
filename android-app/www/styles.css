@@ -6540,3 +6540,107 @@ body.island-mode .toast {
 .hero-chips a strong {
   font-size: 11px;
 }
+
+/* ---- 评论 ------------------------------------------------------------- */
+
+.comment-block {
+  margin-top: 9px;
+}
+
+.comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.comment-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.comment-item .avatar.tiny {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-top: 1px;
+  font-size: 8px;
+}
+
+.comment-name {
+  flex: none;
+  color: var(--muted);
+  font-size: 9.5px;
+}
+
+.comment-text {
+  color: var(--ink-soft);
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.comment-write summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 9.5px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.comment-write summary::-webkit-details-marker {
+  display: none;
+}
+
+.comment-write summary::before {
+  content: "💬";
+  font-size: 10px;
+}
+
+.comment-write[open] summary {
+  color: var(--accent-deep);
+}
+
+.comment-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.comment-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 11px;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 11px;
+}
+
+.comment-input:focus {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 1px;
+}
+
+.comment-send {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.comment-send .icon {
+  width: 14px;
+  height: 14px;
+}

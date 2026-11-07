@@ -1377,6 +1377,7 @@
       saveSync();
       updateSyncUI();
       syncNotifyConfig();
+      maybeAskNotifyPermission();
       if (!options.silent) {
         toast(sync.identity ? '同步完成，共享空间和小岛都合在一起了' : '共享空间已同步；选择身份后才会同步小岛');
       }
@@ -2022,7 +2023,7 @@
   let notify = null;
 
   function defaultNotify() {
-    return { enabled: false, interval: 30, quietStart: '23:00', quietEnd: '08:00' };
+    return { enabled: true, interval: 30, quietStart: '23:00', quietEnd: '08:00', prompted: false };
   }
 
   function loadNotify() {
@@ -2031,10 +2032,12 @@
       const raw = window.localStorage.getItem(NOTIFY_KEY);
       if (!raw) return base;
       const saved = JSON.parse(raw);
+      const legacy = !('prompted' in saved);
       return {
         ...base,
         ...saved,
-        enabled: Boolean(saved.enabled),
+        enabled: legacy ? true : Boolean(saved.enabled),
+        prompted: legacy ? false : Boolean(saved.prompted),
         interval: NOTIFY_INTERVALS.includes(Number(saved.interval)) ? Number(saved.interval) : 30,
       };
     } catch (error) {
@@ -2128,6 +2131,29 @@
     }
   }
 
+  async function maybeAskNotifyPermission() {
+    if (!isNativeApp() || !notify || !notify.enabled || !isSyncConfigured()) return;
+    const plugin = notifyPlugin();
+    if (!plugin || notify.prompted) return;
+    let granted = false;
+    try {
+      const result = await plugin.checkPermission();
+      granted = Boolean(result && result.granted);
+    } catch (error) {
+      return;
+    }
+    notify.prompted = true;
+    saveNotify();
+    if (granted) return;
+    openConfirm({
+      title: '开启通知提醒？',
+      message: 'TA 有新动态时，手机会在通知栏提醒你。需要允许一次通知权限，之后就能在设置里随时关掉。',
+      confirmText: '去开启',
+      danger: false,
+      onConfirm: () => { requestNotifyPermission(); },
+    });
+  }
+
   function settingsNotifyHTML() {
     const config = notify || defaultNotify();
     return `<section class="settings-panel">
@@ -2177,6 +2203,14 @@
     notify.quietEnd = String(form.querySelector('#notify-quiet-end').value || '08:00');
     saveNotify();
     toast(notify.enabled ? '通知开好啦，有新动态会提醒你' : '通知已关闭');
+    if (notify.enabled && isNativeApp()) {
+      const plugin = notifyPlugin();
+      if (plugin && typeof plugin.checkPermission === 'function') {
+        plugin.checkPermission().then((result) => {
+          if (!result || !result.granted) requestNotifyPermission();
+        }).catch(() => {});
+      }
+    }
   }
 
   function confirmSwitchIdentity() {
